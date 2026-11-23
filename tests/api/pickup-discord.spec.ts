@@ -48,6 +48,8 @@ function lobby(change: Partial<LobbyView> = {}): LobbyView {
     set_settings: false,
     roll_out: false,
     pick_map: false,
+    start_draft: false,
+    pick: false,
     start: false,
     ready: false,
     cancel: false,
@@ -64,6 +66,7 @@ function lobby(change: Partial<LobbyView> = {}): LobbyView {
     maps: [{ id: 'de_dust2', name: 'Dust II' }],
     deadline: null,
     match: null,
+    draft: null,
     teams: {
       a: [row('1', 'Ada', { isHost: true }), row('2', 'Bo')],
       b: [row('3', 'Cy')],
@@ -77,9 +80,11 @@ function lobby(change: Partial<LobbyView> = {}): LobbyView {
 }
 
 const labels = (message: ReturnType<typeof panelMessage>) =>
-  message.components.flatMap((r) => r.components.map((c) => c.label));
+  message.components.flatMap((r) => r.components.map((c) => ('label' in c ? c.label : '')));
 const ids = (message: ReturnType<typeof panelMessage>) =>
-  message.components.flatMap((r) => r.components.flatMap((c) => ('custom_id' in c ? [c] : [])));
+  message.components.flatMap((r) =>
+    r.components.flatMap((c) => ('custom_id' in c && c.type === 2 ? [c] : []))
+  );
 
 test.describe('pickup Discord panel (pure)', () => {
   test('custom ids carry the lobby, the action and the version, and round-trip', TAGS, () => {
@@ -99,6 +104,12 @@ test.describe('pickup Discord panel (pure)', () => {
     expect(commandOf('unlock', 7)).toEqual({ command: { type: 'lock_teams', locked: false } });
     expect(commandOf('start', 7)).toEqual({ command: { type: 'start' }, version: 7 });
     expect(commandOf('cancel', 7)).toEqual({ command: { type: 'cancel' }, version: 7 });
+    expect(commandOf('draft', 7)).toEqual({
+      command: { type: 'start_draft', method: 'random' },
+      version: 7,
+    });
+    expect(commandOf('pick', 7, '42')).toEqual({ command: { type: 'pick', playerId: '42' } });
+    expect(commandOf('pick', 7)).toBeNull();
   });
 
   test('names are plain text: no formatting, no mentions', TAGS, () => {
@@ -124,6 +135,7 @@ test.describe('pickup Discord panel (pure)', () => {
       'Scramble',
       'Balance teams',
       'Lock teams',
+      'Pick teams',
       'Start',
       'Open lobby',
     ]);
@@ -178,6 +190,41 @@ test.describe('pickup Discord panel (pure)', () => {
       'Leave',
       'Cancel match',
       'Open match',
+      'Open lobby',
+    ]);
+  });
+
+  test('drafting: whose pick it is and a menu of the players left', TAGS, () => {
+    const message = panelMessage(
+      lobby({
+        state: 'drafting',
+        deadline: 1700000000,
+        teams: { a: [row('1', 'Ada', { isHost: true })], b: [row('3', 'Cy')] },
+        waiting: [row('2', 'Bo'), row('4', 'Di')],
+        draft: {
+          captains: { a: '1', b: '3' },
+          turn: 'b',
+          pool: [row('2', 'Bo'), row('4', 'Di')],
+        },
+      }),
+      SITE
+    );
+    expect(message.embeds[0].description).toContain('**Cy** picks for Team B');
+    expect(message.embeds[0].fields[2].name).toBe('To pick 2');
+    const [menuRow] = message.components;
+    const [menu] = menuRow.components;
+    expect(menu).toMatchObject({
+      type: 3,
+      options: [
+        { label: 'Bo · 1500', value: '2' },
+        { label: 'Di · 1500', value: '4' },
+      ],
+    });
+    expect('custom_id' in menu ? parseCustomId(menu.custom_id)?.action : null).toBe('pick');
+    expect(labels(message).filter(Boolean)).toEqual([
+      'Join waiting room',
+      'Leave',
+      'Cancel draft',
       'Open lobby',
     ]);
   });

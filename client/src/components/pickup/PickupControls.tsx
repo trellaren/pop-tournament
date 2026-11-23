@@ -126,9 +126,7 @@ export function PickupControls({ lobby, busy, onCommand }: PickupControlsProps) 
           data-testid="pickup-cancel"
           onClick={() => onCommand({ type: 'cancel', version })}
         >
-          {lobby.state === 'in_match'
-            ? t('pickup.controls.cancelMatch')
-            : t('pickup.controls.cancelStart')}
+          {t(`pickup.controls.cancel.${lobby.state}`, t('pickup.controls.cancelStart'))}
         </Button>
       )}
 
@@ -150,6 +148,35 @@ export function PickupControls({ lobby, busy, onCommand }: PickupControlsProps) 
           >
             {t('pickup.controls.balance')}
           </Button>
+          <TextField
+            select
+            size="small"
+            label={t('pickup.controls.pickTeams')}
+            value=""
+            disabled={busy || !can.start_draft}
+            onChange={(event) => {
+              const method = event.target.value;
+              if (method === 'random' || method === 'rating') {
+                onCommand({ type: 'start_draft', method, version });
+              }
+              if (method === 'host' && lobby.teams.a[0] && lobby.teams.b[0]) {
+                onCommand({
+                  type: 'start_draft',
+                  method,
+                  captainA: lobby.teams.a[0].playerId,
+                  captainB: lobby.teams.b[0].playerId,
+                  version,
+                });
+              }
+            }}
+            slotProps={{ htmlInput: { 'data-testid': 'pickup-draft' } }}
+          >
+            <MenuItem value="random">{t('pickup.controls.captains.random')}</MenuItem>
+            <MenuItem value="rating">{t('pickup.controls.captains.rating')}</MenuItem>
+            <MenuItem value="host" disabled={!lobby.teams.a[0] || !lobby.teams.b[0]}>
+              {t('pickup.controls.captains.host')}
+            </MenuItem>
+          </TextField>
           <Button
             variant="outlined"
             disabled={busy}

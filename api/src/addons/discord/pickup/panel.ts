@@ -7,6 +7,7 @@ import { log } from '../../../utils/logger';
 import { discordIdOf } from '../../../services/notifyChannels';
 import { PickupError, pickupService } from '../../../services/pickup/pickupService';
 import type { PickupChange } from '../../../services/pickup/pickupBus';
+import { turnOf } from '../../../services/pickup/rules';
 import type { LobbyView } from '../../../services/pickup/pickupView';
 import { botToken } from '../bot';
 import { discordFetch } from '../rest';
@@ -138,6 +139,17 @@ export async function announce(change: PickupChange): Promise<void> {
   if (types.has('match_starting') && change.lobby.matchSlug) {
     const where = `${siteUrl()}/match/${encodeURIComponent(change.lobby.matchSlug)}`;
     await ping(change.lobby.id, seatedIds(), `Your match is starting. Connect here: ${where}`);
+  }
+  const draft = change.lobby.draft;
+  const picking = change.effects.some((e) => e.type === 'pick_timer');
+  if (draft && picking) {
+    const side = turnOf(change.lobby);
+    if (side)
+      await ping(
+        change.lobby.id,
+        [draft.captains[side]],
+        'Your pick: choose a player on the panel.'
+      );
   }
   const rolledIn = change.events.flatMap((e) =>
     e.type === 'rolled_in' && typeof e.data.playerId === 'string' ? [e.data.playerId] : []

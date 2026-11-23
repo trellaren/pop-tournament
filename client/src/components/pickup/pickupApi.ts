@@ -6,6 +6,8 @@ import type { Untrusted } from '../../utils/untrusted';
 
 export type Side = 'a' | 'b';
 
+export type PickupCaptainMethod = 'random' | 'rating' | 'host';
+
 export type PickupRollOut = 'most_played' | 'losers';
 
 export type PickupCommandType =
@@ -19,6 +21,8 @@ export type PickupCommandType =
   | 'lock_teams'
   | 'set_settings'
   | 'roll_out'
+  | 'start_draft'
+  | 'pick'
   | 'pick_map'
   | 'start'
   | 'ready'
@@ -54,7 +58,7 @@ export interface PickupLogLine {
 
 export interface PickupLobby {
   id: string;
-  state: 'gathering' | 'ready_check' | 'in_match' | 'closed';
+  state: 'gathering' | 'drafting' | 'ready_check' | 'in_match' | 'closed';
   version: number;
   hostId: string;
   teamsLocked: boolean;
@@ -63,6 +67,7 @@ export interface PickupLobby {
   maps: Array<{ id: string; name: string }>;
   deadline: number | null;
   match: PickupMatch | null;
+  draft: { captains: Record<Side, string>; turn: Side | null; pool: PickupPlayer[] } | null;
   teams: Record<Side, PickupPlayer[]>;
   waiting: PickupPlayer[];
   log: PickupLogLine[];
@@ -90,6 +95,14 @@ export type PickupCommand =
   | { type: 'lock_teams'; locked: boolean }
   | { type: 'set_settings'; teamSize?: number; rollOut?: PickupRollOut }
   | { type: 'roll_out'; playerId: string; version: number }
+  | {
+      type: 'start_draft';
+      method: PickupCaptainMethod;
+      captainA?: string;
+      captainB?: string;
+      version: number;
+    }
+  | { type: 'pick'; playerId: string }
   | { type: 'pick_map'; map: string | null }
   | { type: 'start'; version: number }
   | { type: 'ready' }

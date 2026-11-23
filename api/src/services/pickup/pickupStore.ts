@@ -21,6 +21,7 @@ import {
   type RollOutRule,
 } from './rules';
 import type { Untrusted } from '../../utils/untrusted';
+import { parseDraft } from './draftStore';
 
 export const PICKUP_GAME = 'cs2';
 export const PICKUP_MODE = '5v5';
@@ -38,6 +39,7 @@ interface LobbyRow {
   deadline_at: number | null;
   match_count: number;
   match_slug: string | null;
+  draft: string | null;
   created_at: number;
 }
 
@@ -106,7 +108,9 @@ function parseEventData(raw: string): EventData {
 const sideOf = (raw: string | null): Side | null => (raw === 'a' || raw === 'b' ? raw : null);
 
 function stateOf(raw: string): LobbyState {
-  if (raw === 'ready_check' || raw === 'in_match' || raw === 'closed') return raw;
+  if (raw === 'drafting' || raw === 'ready_check' || raw === 'in_match' || raw === 'closed') {
+    return raw;
+  }
   return 'gathering';
 }
 
@@ -133,12 +137,13 @@ function toLobby(row: LobbyRow, players: PlayerRow[]): Lobby {
     deadline: row.deadline_at === null ? null : Number(row.deadline_at),
     matchNo: Number(row.match_count),
     matchSlug: row.match_slug,
+    draft: parseDraft(row.draft),
     players: players.map(toPlayer),
   };
 }
 
 const LOBBY_COLUMNS =
-  'id, state, host_id, version, settings, teams_locked, picked_map, deadline_at, match_count, match_slug, created_at';
+  'id, state, host_id, version, settings, teams_locked, picked_map, deadline_at, match_count, match_slug, draft, created_at';
 
 async function playersOf(lobbyId: string): Promise<PlayerRow[]> {
   return db.queryAsync<PlayerRow>(
@@ -250,7 +255,7 @@ export async function saveLobby(
       `UPDATE pickup_lobbies
           SET state = $1, host_id = $2, version = $3, settings = $4, teams_locked = $5,
               closed_at = CASE WHEN $1 = 'closed' THEN $6::integer ELSE closed_at END,
-              picked_map = $9, deadline_at = $10, match_count = $11, match_slug = $12,
+              picked_map = $9, deadline_at = $10, match_count = $11, match_slug = $12, draft = $13,
               updated_at = $6::integer
         WHERE id = $7 AND version = $8`,
       [
@@ -266,6 +271,7 @@ export async function saveLobby(
         lobby.deadline,
         lobby.matchNo,
         lobby.matchSlug,
+        lobby.draft ? JSON.stringify(lobby.draft) : null,
       ]
     );
     if (updated.rowCount !== 1) throw new Error('Pickup lobby changed while it was being written');

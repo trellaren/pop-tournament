@@ -29,6 +29,10 @@ const KNOWN = new Set([
   'rolled_out',
   'rolled_in',
   'roll_out_rule',
+  'draft_started',
+  'picked',
+  'draft_finished',
+  'draft_cancelled',
 ]);
 
 /** The log line of an ended match says who won. */
@@ -39,6 +43,7 @@ function lineKey(line: PickupLogLine): string {
       ? `pickup.log.match_won.${winner}`
       : 'pickup.log.match_drawn';
   }
+  if (line.type === 'picked' && line.actorId === 'system') return 'pickup.log.picked_auto';
   if (line.type === 'roll_out_rule') {
     return line.data.rule === 'losers' ? 'pickup.log.rule_losers' : 'pickup.log.rule_most_played';
   }

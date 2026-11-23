@@ -95,15 +95,21 @@ async function attempt(what: () => Promise<string | null>): Promise<string | nul
 export async function pickupComponentAnswer(
   interaction: Record<string, Untrusted>
 ): Promise<string | null | undefined> {
-  const data = interaction.data as { custom_id?: Untrusted } | undefined;
+  const data = interaction.data as { custom_id?: Untrusted; values?: Untrusted } | undefined;
   const parsed = typeof data?.custom_id === 'string' ? parseCustomId(data.custom_id) : null;
   if (!parsed) return undefined;
   const userId = userIdOf(interaction);
   const actor = userId ? await actorOf(userId) : null;
   if (!actor) return NOT_LINKED;
-  const { command, version } = commandOf(parsed.action, parsed.version);
+  const [value] = Array.isArray(data?.values) ? (data.values as Untrusted[]) : [];
+  const meant = commandOf(
+    parsed.action,
+    parsed.version,
+    typeof value === 'string' ? value : undefined
+  );
+  if (!meant) return 'Choose a player from the menu.';
   return attempt(async () => {
-    await pickupService.command(parsed.lobbyId, actor, command, version);
+    await pickupService.command(parsed.lobbyId, actor, meant.command, meant.version);
     return doneText(parsed.action);
   });
 }

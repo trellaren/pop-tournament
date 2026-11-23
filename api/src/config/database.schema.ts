@@ -1338,7 +1338,7 @@ export function getSchemaSQL(): string {
       id TEXT PRIMARY KEY,
       game TEXT NOT NULL DEFAULT 'cs2',
       mode TEXT NOT NULL DEFAULT '5v5',
-      state TEXT NOT NULL, -- 'gathering' | 'ready_check' | 'in_match' | 'closed'
+      state TEXT NOT NULL, -- 'gathering' | 'drafting' | 'ready_check' | 'in_match' | 'closed'
       host_id TEXT NOT NULL,
       version INTEGER NOT NULL DEFAULT 1, -- goes up by one with every change
       settings TEXT NOT NULL, -- JSON { teamSize, rollOut }
@@ -1349,7 +1349,8 @@ export function getSchemaSQL(): string {
       deadline_at INTEGER, -- when the ready check ends; NULL outside one
       match_count INTEGER NOT NULL DEFAULT 0, -- matches this lobby has started
       match_slug TEXT, -- the running match; NULL outside one
-      updated_at INTEGER -- when the lobby last changed; NULL = never since it opened
+      updated_at INTEGER, -- when the lobby last changed; NULL = never since it opened
+      draft TEXT -- JSON { captains, picks, ratings }: the running captain draft; NULL outside one
     );
     CREATE UNIQUE INDEX IF NOT EXISTS idx_pickup_lobbies_open ON pickup_lobbies(game, mode) WHERE state <> 'closed';
 

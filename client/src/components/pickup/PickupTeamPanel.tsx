@@ -29,6 +29,7 @@ export function PickupTeamPanel({ lobby, side, viewerId, busy, onCommand }: Pick
   const teamSize = lobby.settings.teamSize;
   const where = side ?? 'waiting';
   const title = side === null ? t('pickup.waitingRoom') : t(`pickup.team.${side}`);
+  const captain = side === null ? null : (lobby.draft?.captains[side] ?? null);
   const count = side === null ? String(players.length) : `${players.length}/${teamSize}`;
   const average = averageRating(players);
   const full = side !== null && players.length >= teamSize;
@@ -68,6 +69,9 @@ export function PickupTeamPanel({ lobby, side, viewerId, busy, onCommand }: Pick
             {player.name}
           </Typography>
           {player.isHost && <Chip size="small" label={t('pickup.host')} />}
+          {player.playerId === captain && (
+            <Chip size="small" color="primary" label={t('pickup.draft.captain')} />
+          )}
           {lobby.state === 'ready_check' && side !== null && (
             <Chip
               size="small"

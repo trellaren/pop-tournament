@@ -33,14 +33,17 @@ import {
   type Side,
   type SystemCommand,
 } from './lobby';
+import { cancelDraft, isCaptain, pick, pickTimeout, startDraft, turnOf } from './draft';
 import { rollOutAfterMatch, rollOutByHand } from './rollout';
 import { balance, scramble } from './teams';
 
 export * from './lobby';
 export { balancedSplit, shuffled } from './teams';
+export { draftPool, sideOfPick, turnOf } from './draft';
 
 /** Commands that must name the version they were drawn for. */
 const ONE_SHOT: ReadonlySet<CommandType> = new Set([
+  'start_draft',
   'roll_out',
   'scramble',
   'balance',
@@ -59,6 +62,7 @@ const MANAGE_ONLY: ReadonlySet<CommandType> = new Set([
   'lock_teams',
   'set_settings',
   'roll_out',
+  'start_draft',
   'pick_map',
   'start',
   'cancel',
@@ -72,9 +76,16 @@ const GATHERING_ONLY: ReadonlySet<CommandType> = new Set([
   'balance',
   'set_settings',
   'roll_out',
+  'start_draft',
   'pick_map',
   'start',
 ]);
+
+/** The captain whose pick it is, if a draft is running. */
+function turnCaptain(lobby: Lobby): string | null {
+  const side = turnOf(lobby);
+  return side && lobby.draft ? lobby.draft.captains[side] : null;
+}
 
 /** What the actor may do now; the page and the panel show buttons from this. */
 export function allowed(lobby: Lobby, actor: Actor): Record<CommandType, boolean> {
@@ -96,9 +107,11 @@ export function allowed(lobby: Lobby, actor: Actor): Record<CommandType, boolean
     set_settings: manage && gathering,
     roll_out: manage && gathering && seatedCount >= 1,
     pick_map: manage && gathering,
+    start_draft: manage && gathering && lobby.players.length >= 2,
+    pick: lobby.state === 'drafting' && turnCaptain(lobby) === actor.playerId,
     start: manage && gathering && teamsFull(lobby),
     ready: lobby.state === 'ready_check' && Boolean(mine?.side) && !mine?.ready,
-    cancel: manage && (lobby.state === 'ready_check' || lobby.state === 'in_match'),
+    cancel: manage && lobby.state !== 'gathering',
     close: manage && lobby.state !== 'in_match',
   };
 }
@@ -149,6 +162,12 @@ function remove(lobby: Lobby, playerId: string, event: LobbyEvent): Outcome {
   if (target.side !== null && lobby.state === 'ready_check') {
     next = toGathering(lobby);
     events.push({ type: 'start_cancelled', actorId: event.actorId, data: {} });
+  }
+  // A draft cannot go on without one of its captains.
+  if (lobby.state === 'drafting' && isCaptain(lobby, playerId)) {
+    const cancelled = cancelDraft(lobby, event.actorId);
+    next = cancelled.lobby;
+    events.push(cancelled.event);
   }
   const players = next.players.filter((p) => p.playerId !== playerId);
   if (players.length === 0) {
@@ -243,6 +262,10 @@ function start(lobby: Lobby, actor: Actor, ctx: Context): Outcome {
 }
 
 function cancel(lobby: Lobby, actor: Actor): Outcome {
+  if (lobby.state === 'drafting') {
+    const cancelled = cancelDraft(lobby, actor.playerId);
+    return done(cancelled.lobby, [cancelled.event]);
+  }
   if (lobby.state === 'ready_check') {
     return done(toGathering(lobby), [
       { type: 'start_cancelled', actorId: actor.playerId, data: {} },
@@ -320,6 +343,10 @@ export function decide(lobby: Lobby, actor: Actor, command: Command, ctx: Contex
         { type: 'map_picked', actorId: actor.playerId, data: { map: command.map } },
       ]);
     }
+    case 'start_draft':
+      return startDraft(lobby, actor, command, ctx);
+    case 'pick':
+      return pick(lobby, actor, command.playerId, ctx);
     case 'start':
       return start(lobby, actor, ctx);
     case 'ready': {
@@ -356,6 +383,7 @@ export function decideSystem(lobby: Lobby, command: SystemCommand, ctx: Context)
       { type: 'ready_timed_out', actorId: SYSTEM_ACTOR, data: { count: late.length } },
     ]);
   }
+  if (command.type === 'pick_timeout') return pickTimeout(lobby, command.deadline, ctx);
   if (command.type === 'idle_timeout') {
     if (lobby.state !== 'gathering') return refuse('stale');
     return done({ ...lobby, state: 'closed' }, [

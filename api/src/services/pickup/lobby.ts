@@ -15,7 +15,22 @@ export const MAX_LOBBY_PLAYERS = 40;
 /** How long the seated players have to press Ready after Start. */
 export const READY_SECONDS = 60;
 
-export type LobbyState = 'gathering' | 'ready_check' | 'in_match' | 'closed';
+export type LobbyState = 'gathering' | 'drafting' | 'ready_check' | 'in_match' | 'closed';
+
+/** How long a captain has for one pick. */
+export const PICK_SECONDS = 30;
+
+/** How the two captains of a draft are chosen. */
+export type CaptainMethod = 'random' | 'rating' | 'host';
+export const CAPTAIN_METHODS: readonly CaptainMethod[] = ['random', 'rating', 'host'];
+
+/** A running captain draft. Whose turn it is follows from how many picks were made. */
+export interface Draft {
+  captains: Record<Side, string>;
+  picks: number;
+  /** Each player's rating when the draft began: a pick that times out takes the highest left. */
+  ratings: Readonly<Record<string, number>>;
+}
 
 export interface LobbyPlayer {
   playerId: string;
@@ -57,6 +72,8 @@ export interface Lobby {
   matchNo: number;
   /** The running match; null outside one. */
   matchSlug: string | null;
+  /** The running captain draft; null outside one. */
+  draft: Draft | null;
   players: LobbyPlayer[];
 }
 
@@ -77,6 +94,14 @@ export type Command =
   | { type: 'set_settings'; teamSize?: number; rollOut?: RollOutRule }
   | { type: 'roll_out'; playerId: string }
   | { type: 'pick_map'; map: string | null }
+  | {
+      type: 'start_draft';
+      method: CaptainMethod;
+      ratings: Readonly<Record<string, number>>;
+      captainA?: string;
+      captainB?: string;
+    }
+  | { type: 'pick'; playerId: string }
   | { type: 'start' }
   | { type: 'ready' }
   | { type: 'cancel' }
@@ -87,6 +112,7 @@ export type CommandType = Command['type'];
 /** What the server itself reports to a lobby: a timer, or the match's fate. */
 export type SystemCommand =
   | { type: 'ready_timeout'; deadline: number }
+  | { type: 'pick_timeout'; deadline: number }
   | { type: 'match_ended'; slug: string; winner: Side | null }
   | { type: 'match_cancelled'; slug: string }
   | { type: 'match_failed'; slug: string }
@@ -106,7 +132,9 @@ export type RefusalCode =
   | 'not_enough_players'
   | 'wrong_state'
   | 'in_match'
-  | 'teams_not_full';
+  | 'teams_not_full'
+  | 'not_your_turn'
+  | 'invalid_captains';
 
 export type EventData = Readonly<Record<string, string | number | boolean | null>>;
 
@@ -119,6 +147,7 @@ export interface LobbyEvent {
 /** What the service does after the change is written. */
 export type Effect =
   | { type: 'ready_timer'; deadline: number }
+  | { type: 'pick_timer'; deadline: number }
   | { type: 'create_match'; slug: string }
   | { type: 'cancel_match'; slug: string };
 
@@ -156,6 +185,7 @@ export function newLobby(id: string, hostId: string, now: number): Lobby {
     deadline: null,
     matchNo: 0,
     matchSlug: null,
+    draft: null,
     players: [
       {
         playerId: hostId,
@@ -213,6 +243,7 @@ export function toGathering(lobby: Lobby): Lobby {
     state: 'gathering',
     deadline: null,
     matchSlug: null,
+    draft: null,
     players: lobby.players.map((p) => (p.ready ? { ...p, ready: false } : p)),
   };
 }
