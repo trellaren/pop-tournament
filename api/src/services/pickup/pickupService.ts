@@ -21,7 +21,7 @@ import {
   type Side,
   type SystemCommand,
 } from './rules';
-import { cancelPickupMatch, createPickupMatch, mapPoolFor } from './pickupMatch';
+import { cancelPickupMatch, createPickupMatch, mapPoolFor, mapPools } from './pickupMatch';
 import { emitPickupChange } from './pickupBus';
 import { buildList, buildView, ratingsOf, type LobbySummary, type LobbyView } from './pickupView';
 import {
@@ -146,8 +146,16 @@ export class PickupService {
       const lobby = await this.current(lobbyId);
       if (!lobby) throw refusal('not_found');
       if (input.type === 'pick_map' && input.map !== null) {
-        const pool = await mapPoolFor(lobby.settings.teamSize);
+        const pool = await mapPoolFor(lobby.settings.teamSize, lobby.settings.poolId);
         if (!pool.some((m) => m.id === input.map)) throw refusal('invalid_map');
+      }
+      if (input.type === 'vote_map') {
+        const pool = await mapPoolFor(lobby.settings.teamSize, lobby.settings.poolId);
+        if (!pool.some((m) => m.id === input.map)) throw refusal('invalid_map');
+      }
+      if (input.type === 'set_settings' && typeof input.poolId === 'number') {
+        const pools = await mapPools();
+        if (!pools.some((pool) => pool.id === input.poolId)) throw refusal('invalid_settings');
       }
       const inLobby = lobby.players.some((p) => p.playerId === actor.playerId);
       if (input.type === 'join' && !inLobby) {
@@ -188,7 +196,7 @@ export class PickupService {
   }
 
   private async run(lobby: Lobby, effect: Effect, now: number): Promise<void> {
-    if (effect.type === 'ready_timer' || effect.type === 'pick_timer') {
+    if (effect.type !== 'create_match' && effect.type !== 'cancel_match') {
       const wait = Math.max(0, effect.deadline - now) * 1000 + 500;
       setTimeout(() => void this.refresh(lobby.id), wait).unref();
       return;
@@ -203,7 +211,7 @@ export class PickupService {
       return;
     }
     try {
-      await createPickupMatch(lobby, effect.slug, now);
+      await createPickupMatch(lobby, effect.slug, now, effect.veto);
     } catch (error) {
       log.error(`[PICKUP] could not create match ${effect.slug}`, error as Error);
       await this.system(lobby, { type: 'match_failed', slug: effect.slug });
@@ -232,6 +240,9 @@ export class PickupService {
       if (touched !== null && this.clock() - touched >= IDLE_SECONDS) {
         return this.system(lobby, { type: 'idle_timeout' });
       }
+    }
+    if (lobby.state === 'map_vote' && lobby.deadline !== null && this.clock() >= lobby.deadline) {
+      return this.system(lobby, { type: 'vote_timeout', deadline: lobby.deadline });
     }
     if (lobby.state === 'drafting' && lobby.deadline !== null && this.clock() >= lobby.deadline) {
       // One pick per overdue deadline; the next pick gets its own timer.

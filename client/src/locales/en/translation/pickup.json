@@ -55,7 +55,20 @@
       "rollOutRule": {
         "most_played": "Longest on the server",
         "losers": "Losing team"
-      }
+      },
+      "mapMethod": "How the map is chosen",
+      "method": {
+        "pick": "Host picks",
+        "veto": "Teams veto",
+        "vote": "Players vote"
+      },
+      "methodHint": {
+        "veto": "After the ready check the two teams ban maps in turn on the match page.",
+        "vote": "After the ready check the seated players vote for the map."
+      },
+      "pool": "Map pool",
+      "defaultPool": "Default pool",
+      "poolName": "{{name}} ({{count}})"
     },
     "controls": {
       "scramble": "Scramble",
@@ -114,7 +127,16 @@
       "picked": "{{actor}} picked {{player}} for {{place}}.",
       "picked_auto": "Time ran out: {{player}} goes to {{place}}.",
       "draft_finished": "The draft is done. Teams are locked.",
-      "draft_cancelled": "The draft was cancelled."
+      "draft_cancelled": "The draft was cancelled.",
+      "method": {
+        "pick": "{{actor}} set the map to the host's pick.",
+        "veto": "{{actor}} set the map to a veto between the teams.",
+        "vote": "{{actor}} set the map to a vote."
+      },
+      "map_pool": "{{actor}} changed the map pool.",
+      "map_vote": "Everyone is ready. Vote for the map.",
+      "map_voted": "The vote chose {{map}}.",
+      "map_voted_none": "Nobody voted: the map is drawn."
     },
     "refusal": {
       "closed": "This lobby is closed.",
@@ -155,7 +177,8 @@
         "loaded": "The server is ready. Open the match to connect.",
         "live": "The match is live.",
         "completed": "The match is over."
-      }
+      },
+      "vetoing": "The teams are choosing the map. Open the match to take part."
     },
     "gamesInRow_one": "{{count}} game in a row",
     "gamesInRow_other": "{{count}} games in a row",
@@ -167,6 +190,10 @@
       "pool_one": "{{count}} player to pick",
       "pool_other": "{{count}} players to pick",
       "pick": "Pick"
+    },
+    "vote": {
+      "title": "Vote for the map",
+      "progress": "{{voted}} of {{total}} voted · {{seconds}} s left"
     }
   }
 }

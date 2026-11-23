@@ -45,6 +45,7 @@ export type PanelAction =
   | 'start'
   | 'draft'
   | 'pick'
+  | 'vote'
   | 'cancel';
 
 const ACTIONS: readonly PanelAction[] = [
@@ -60,6 +61,7 @@ const ACTIONS: readonly PanelAction[] = [
   'start',
   'draft',
   'pick',
+  'vote',
   'cancel',
 ];
 
@@ -95,6 +97,8 @@ export function commandOf(
       return { command: { type: 'start_draft', method: 'random' }, version };
     case 'pick':
       return value ? { command: { type: 'pick', playerId: value } } : null;
+    case 'vote':
+      return value ? { command: { type: 'vote_map', map: value } } : null;
     case 'join_a':
       return { command: { type: 'join', side: 'a' } };
     case 'join_b':
@@ -157,6 +161,11 @@ function stateLine(lobby: LobbyView, siteUrl: string): string {
       : '';
     return `**Captains pick.** ${nameOf(captains.a)} and ${nameOf(captains.b)}.${picking}${until}`;
   }
+  if (lobby.state === 'map_vote') {
+    const until = lobby.deadline === null ? '' : ` It ends <t:${lobby.deadline}:R>.`;
+    const voted = lobby.vote ? ` ${lobby.vote.voted} of ${lobby.vote.voters} have voted.` : '';
+    return `**Map vote.** Seated players, choose a map from the menu.${voted}${until}`;
+  }
   if (lobby.state === 'ready_check') {
     const until = lobby.deadline === null ? '' : ` It ends <t:${lobby.deadline}:R>.`;
     return `**Ready check.** Seated players, press Ready.${until}`;
@@ -164,6 +173,9 @@ function stateLine(lobby: LobbyView, siteUrl: string): string {
   if (lobby.state === 'in_match' && lobby.match) {
     const map = mapName(lobby.match.map);
     const where = `${siteUrl}/match/${encodeURIComponent(lobby.match.slug)}`;
+    if (lobby.match.vetoing) {
+      return `**Match ${lobby.match.matchNo}.** The teams are choosing the map: ${where}`;
+    }
     return `**Match ${lobby.match.matchNo}**${map ? ` on ${map}` : ''}. Connect from the match page: ${where}`;
   }
   const size = lobby.settings.teamSize;
@@ -253,6 +265,27 @@ function rowsOf(lobby: LobbyView, siteUrl: string): Row[] {
           button(lobby, 'cancel', 'Cancel draft', 4),
         ],
       },
+      { type: 1, components: links },
+    ];
+  }
+  if (lobby.state === 'map_vote') {
+    const maps = lobby.maps.slice(0, 25);
+    return [
+      {
+        type: 1,
+        components: [
+          {
+            type: 3,
+            custom_id: customId(lobby.id, 'vote', lobby.version),
+            placeholder: 'Vote for a map',
+            options: maps.map((m) => {
+              const votes = lobby.vote?.counts[m.id] ?? 0;
+              return { label: votes > 0 ? `${m.name} · ${votes}` : m.name, value: m.id };
+            }),
+          },
+        ],
+      },
+      { type: 1, components: [button(lobby, 'cancel', 'Cancel start', 4)] },
       { type: 1, components: links },
     ];
   }

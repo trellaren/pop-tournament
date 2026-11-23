@@ -17,7 +17,7 @@ import {
   type LobbySettings,
   type Side,
 } from './rules';
-import { mapPoolFor, type PickupMap } from './pickupMatch';
+import { mapPoolFor, mapPools, type PickupMap, type PickupPool } from './pickupMatch';
 import { PICKUP_GAME, loadEvents, loadMatchState, loadNames, type PlayerName } from './pickupStore';
 
 export interface PlayerView {
@@ -47,6 +47,8 @@ export interface MatchView {
   /** The platform's status of the match: pending, loaded, live… */
   status: string;
   map: string | null;
+  /** The teams are vetoing the map on the match page. */
+  vetoing: boolean;
 }
 
 export interface LogLine {
@@ -87,6 +89,15 @@ export interface LobbyView {
   match: MatchView | null;
   /** The running captain draft; null outside one. */
   draft: DraftView | null;
+  /** The map pools the host can choose from. */
+  pools: PickupPool[];
+  /** The running map vote: votes per map, and the viewer's own. Null outside one. */
+  vote: {
+    counts: Record<string, number>;
+    mine: string | null;
+    voted: number;
+    voters: number;
+  } | null;
   teams: Record<Side, PlayerView[]>;
   waiting: PlayerView[];
   log: LogLine[];
@@ -101,6 +112,17 @@ function whereIs(lobby: Lobby, playerId: string): Side | 'waiting' | null {
   const mine = lobby.players.find((p) => p.playerId === playerId);
   if (!mine) return null;
   return mine.side ?? 'waiting';
+}
+
+function voteView(lobby: Lobby, viewer: Actor): NonNullable<LobbyView['vote']> {
+  const counts: Record<string, number> = {};
+  for (const map of Object.values(lobby.votes)) counts[map] = (counts[map] ?? 0) + 1;
+  return {
+    counts,
+    mine: lobby.votes[viewer.playerId] ?? null,
+    voted: Object.keys(lobby.votes).length,
+    voters: lobby.players.filter((p) => p.side !== null).length,
+  };
 }
 
 /** Each player's rating in the lobby's game: shown on the rows and used by Balance teams. */
@@ -133,7 +155,10 @@ function playerView(
 export async function buildView(lobby: Lobby, viewer: Actor): Promise<LobbyView> {
   const lobbyId = lobby.id;
   const matchState = lobby.matchSlug ? await loadMatchState(lobby.matchSlug) : null;
-  const maps = lobby.state === 'closed' ? [] : await mapPoolFor(lobby.settings.teamSize);
+  const maps =
+    lobby.state === 'closed'
+      ? []
+      : await mapPoolFor(lobby.settings.teamSize, lobby.settings.poolId);
   const events = await loadEvents(lobbyId);
   const ids = lobby.players.map((p) => p.playerId);
   const mentioned = events.flatMap((e) => {
@@ -159,8 +184,11 @@ export async function buildView(lobby: Lobby, viewer: Actor): Promise<LobbyView>
           matchNo: lobby.matchNo,
           status: matchState?.status ?? 'pending',
           map: matchState?.map ?? null,
+          vetoing: matchState?.vetoing ?? false,
         }
       : null,
+    pools: lobby.state === 'closed' ? [] : await mapPools(),
+    vote: lobby.state === 'map_vote' ? voteView(lobby, viewer) : null,
     draft: lobby.draft
       ? { captains: lobby.draft.captains, turn: turnOf(lobby), pool: draftPool(lobby).map(row) }
       : null,

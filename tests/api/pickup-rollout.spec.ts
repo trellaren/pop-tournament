@@ -182,7 +182,7 @@ test.describe('pickup roll-out (pure)', () => {
     const lobby = run(newLobby('l', 'host', 100), [
       [HOST, { type: 'set_settings', rollOut: 'losers' }],
     ]);
-    expect(lobby.settings).toEqual({ teamSize: 5, rollOut: 'losers' });
+    expect(lobby.settings).toMatchObject({ teamSize: 5, rollOut: 'losers' });
     const same = decide(
       lobby,
       HOST,

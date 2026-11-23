@@ -12,6 +12,8 @@ interface PickupControlsProps {
 
 const TEAM_SIZES = [1, 2, 3, 4, 5];
 const RANDOM_MAP = 'random';
+const DEFAULT_POOL = 'default';
+const METHODS = ['pick', 'veto', 'vote'] as const;
 
 export function PickupControls({ lobby, busy, onCommand }: PickupControlsProps) {
   const { t } = useTranslation();
@@ -47,7 +49,55 @@ export function PickupControls({ lobby, busy, onCommand }: PickupControlsProps) 
           {t('pickup.settings.versus', { size: lobby.settings.teamSize })}
         </Typography>
       )}
-      {can.pick_map ? (
+      {can.set_settings && (
+        <TextField
+          select
+          size="small"
+          label={t('pickup.settings.mapMethod')}
+          value={lobby.settings.mapMethod}
+          disabled={busy}
+          onChange={(event) => {
+            const method = METHODS.find((m) => m === event.target.value);
+            if (method) onCommand({ type: 'set_settings', mapMethod: method });
+          }}
+          slotProps={{ htmlInput: { 'data-testid': 'pickup-map-method' } }}
+        >
+          {METHODS.map((method) => (
+            <MenuItem key={method} value={method}>
+              {t(`pickup.settings.method.${method}`)}
+            </MenuItem>
+          ))}
+        </TextField>
+      )}
+      {can.set_settings && lobby.pools.length > 0 && (
+        <TextField
+          select
+          size="small"
+          label={t('pickup.settings.pool')}
+          value={lobby.settings.poolId ?? DEFAULT_POOL}
+          disabled={busy}
+          onChange={(event) =>
+            onCommand({
+              type: 'set_settings',
+              poolId: event.target.value === DEFAULT_POOL ? null : Number(event.target.value),
+            })
+          }
+          slotProps={{ htmlInput: { 'data-testid': 'pickup-pool' } }}
+        >
+          <MenuItem value={DEFAULT_POOL}>{t('pickup.settings.defaultPool')}</MenuItem>
+          {lobby.pools.map((pool) => (
+            <MenuItem key={pool.id} value={pool.id}>
+              {t('pickup.settings.poolName', { name: pool.name, count: pool.maps })}
+            </MenuItem>
+          ))}
+        </TextField>
+      )}
+      {lobby.settings.mapMethod !== 'pick' && (
+        <Typography variant="body2" color="text.secondary">
+          {t(`pickup.settings.methodHint.${lobby.settings.mapMethod}`)}
+        </Typography>
+      )}
+      {lobby.settings.mapMethod === 'pick' && can.pick_map && (
         <TextField
           select
           size="small"
@@ -69,7 +119,8 @@ export function PickupControls({ lobby, busy, onCommand }: PickupControlsProps) 
             </MenuItem>
           ))}
         </TextField>
-      ) : (
+      )}
+      {lobby.settings.mapMethod === 'pick' && !can.pick_map && (
         <Typography variant="body2" color="text.secondary">
           {t('pickup.settings.mapIs', { map: pickedName ?? t('pickup.settings.randomMap') })}
         </Typography>

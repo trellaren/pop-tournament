@@ -15,7 +15,23 @@ export const MAX_LOBBY_PLAYERS = 40;
 /** How long the seated players have to press Ready after Start. */
 export const READY_SECONDS = 60;
 
-export type LobbyState = 'gathering' | 'drafting' | 'ready_check' | 'in_match' | 'closed';
+export type LobbyState =
+  | 'gathering'
+  | 'drafting'
+  | 'ready_check'
+  | 'map_vote'
+  | 'in_match'
+  | 'closed';
+
+/** How long the seated players have to vote for a map. */
+export const VOTE_SECONDS = 30;
+
+/**
+ * How the map is chosen: the host's pick (or a random one), the platform's
+ * veto between the two teams once the match exists, or a vote in the lobby.
+ */
+export type MapMethod = 'pick' | 'veto' | 'vote';
+export const MAP_METHODS: readonly MapMethod[] = ['pick', 'veto', 'vote'];
 
 /** How long a captain has for one pick. */
 export const PICK_SECONDS = 30;
@@ -54,6 +70,9 @@ export const IDLE_SECONDS = 2 * 60 * 60;
 export interface LobbySettings {
   teamSize: number;
   rollOut: RollOutRule;
+  mapMethod: MapMethod;
+  /** The platform's map pool the lobby plays from; null: the default for the team size. */
+  poolId: number | null;
 }
 
 export interface Lobby {
@@ -74,6 +93,8 @@ export interface Lobby {
   matchSlug: string | null;
   /** The running captain draft; null outside one. */
   draft: Draft | null;
+  /** The running map vote: player id to map id. */
+  votes: Readonly<Record<string, string>>;
   players: LobbyPlayer[];
 }
 
@@ -91,7 +112,14 @@ export type Command =
   | { type: 'scramble' }
   | { type: 'balance'; ratings: Readonly<Record<string, number>> }
   | { type: 'lock_teams'; locked: boolean }
-  | { type: 'set_settings'; teamSize?: number; rollOut?: RollOutRule }
+  | {
+      type: 'set_settings';
+      teamSize?: number;
+      rollOut?: RollOutRule;
+      mapMethod?: MapMethod;
+      poolId?: number | null;
+    }
+  | { type: 'vote_map'; map: string }
   | { type: 'roll_out'; playerId: string }
   | { type: 'pick_map'; map: string | null }
   | {
@@ -113,6 +141,7 @@ export type CommandType = Command['type'];
 export type SystemCommand =
   | { type: 'ready_timeout'; deadline: number }
   | { type: 'pick_timeout'; deadline: number }
+  | { type: 'vote_timeout'; deadline: number }
   | { type: 'match_ended'; slug: string; winner: Side | null }
   | { type: 'match_cancelled'; slug: string }
   | { type: 'match_failed'; slug: string }
@@ -148,7 +177,8 @@ export interface LobbyEvent {
 export type Effect =
   | { type: 'ready_timer'; deadline: number }
   | { type: 'pick_timer'; deadline: number }
-  | { type: 'create_match'; slug: string }
+  | { type: 'vote_timer'; deadline: number }
+  | { type: 'create_match'; slug: string; veto: boolean }
   | { type: 'cancel_match'; slug: string };
 
 export type Outcome =
@@ -179,13 +209,19 @@ export function newLobby(id: string, hostId: string, now: number): Lobby {
     state: 'gathering',
     hostId,
     version: 1,
-    settings: { teamSize: DEFAULT_TEAM_SIZE, rollOut: 'most_played' },
+    settings: {
+      teamSize: DEFAULT_TEAM_SIZE,
+      rollOut: 'most_played',
+      mapMethod: 'pick',
+      poolId: null,
+    },
     teamsLocked: false,
     pickedMap: null,
     deadline: null,
     matchNo: 0,
     matchSlug: null,
     draft: null,
+    votes: {},
     players: [
       {
         playerId: hostId,
@@ -244,6 +280,7 @@ export function toGathering(lobby: Lobby): Lobby {
     deadline: null,
     matchSlug: null,
     draft: null,
+    votes: {},
     players: lobby.players.map((p) => (p.ready ? { ...p, ready: false } : p)),
   };
 }

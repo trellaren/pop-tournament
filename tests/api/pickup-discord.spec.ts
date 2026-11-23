@@ -50,6 +50,7 @@ function lobby(change: Partial<LobbyView> = {}): LobbyView {
     pick_map: false,
     start_draft: false,
     pick: false,
+    vote_map: false,
     start: false,
     ready: false,
     cancel: false,
@@ -61,7 +62,9 @@ function lobby(change: Partial<LobbyView> = {}): LobbyView {
     version: 7,
     hostId: '1',
     teamsLocked: false,
-    settings: { teamSize: 2, rollOut: 'most_played' },
+    settings: { teamSize: 2, rollOut: 'most_played', mapMethod: 'pick', poolId: null },
+    pools: [],
+    vote: null,
     pickedMap: null,
     maps: [{ id: 'de_dust2', name: 'Dust II' }],
     deadline: null,
@@ -178,7 +181,13 @@ test.describe('pickup Discord panel (pure)', () => {
     const message = panelMessage(
       lobby({
         state: 'in_match',
-        match: { slug: 'pu-0f8fad5b-1', matchNo: 1, status: 'live', map: 'de_dust2' },
+        match: {
+          slug: 'pu-0f8fad5b-1',
+          matchNo: 1,
+          status: 'live',
+          map: 'de_dust2',
+          vetoing: false,
+        },
       }),
       SITE
     );
@@ -227,6 +236,34 @@ test.describe('pickup Discord panel (pure)', () => {
       'Cancel draft',
       'Open lobby',
     ]);
+  });
+
+  test('map vote: a menu of the maps with their votes', TAGS, () => {
+    const message = panelMessage(
+      lobby({
+        state: 'map_vote',
+        deadline: 1700000000,
+        vote: { counts: { de_dust2: 2 }, mine: null, voted: 2, voters: 4 },
+      }),
+      SITE
+    );
+    expect(message.embeds[0].description).toContain('2 of 4 have voted');
+    const [menu] = message.components[0].components;
+    expect(menu).toMatchObject({ type: 3, options: [{ label: 'Dust II · 2', value: 'de_dust2' }] });
+    expect(commandOf('vote', 7, 'de_dust2')).toEqual({
+      command: { type: 'vote_map', map: 'de_dust2' },
+    });
+  });
+
+  test('a match whose teams are still vetoing says so', TAGS, () => {
+    const message = panelMessage(
+      lobby({
+        state: 'in_match',
+        match: { slug: 'pu-0f8fad5b-1', matchNo: 1, status: 'pending', map: null, vetoing: true },
+      }),
+      SITE
+    );
+    expect(message.embeds[0].description).toContain('choosing the map');
   });
 
   test('closed: no buttons, no teams', TAGS, () => {

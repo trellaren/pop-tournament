@@ -8,6 +8,8 @@ export type Side = 'a' | 'b';
 
 export type PickupCaptainMethod = 'random' | 'rating' | 'host';
 
+export type PickupMapMethod = 'pick' | 'veto' | 'vote';
+
 export type PickupRollOut = 'most_played' | 'losers';
 
 export type PickupCommandType =
@@ -24,6 +26,7 @@ export type PickupCommandType =
   | 'start_draft'
   | 'pick'
   | 'pick_map'
+  | 'vote_map'
   | 'start'
   | 'ready'
   | 'cancel'
@@ -44,6 +47,7 @@ export interface PickupMatch {
   matchNo: number;
   status: string;
   map: string | null;
+  vetoing: boolean;
 }
 
 export interface PickupLogLine {
@@ -58,11 +62,23 @@ export interface PickupLogLine {
 
 export interface PickupLobby {
   id: string;
-  state: 'gathering' | 'drafting' | 'ready_check' | 'in_match' | 'closed';
+  state: 'gathering' | 'drafting' | 'ready_check' | 'map_vote' | 'in_match' | 'closed';
   version: number;
   hostId: string;
   teamsLocked: boolean;
-  settings: { teamSize: number; rollOut: PickupRollOut };
+  settings: {
+    teamSize: number;
+    rollOut: PickupRollOut;
+    mapMethod: PickupMapMethod;
+    poolId: number | null;
+  };
+  pools: Array<{ id: number; name: string; maps: number }>;
+  vote: {
+    counts: Record<string, number>;
+    mine: string | null;
+    voted: number;
+    voters: number;
+  } | null;
   pickedMap: string | null;
   maps: Array<{ id: string; name: string }>;
   deadline: number | null;
@@ -93,7 +109,14 @@ export type PickupCommand =
   | { type: 'scramble'; version: number }
   | { type: 'balance'; version: number }
   | { type: 'lock_teams'; locked: boolean }
-  | { type: 'set_settings'; teamSize?: number; rollOut?: PickupRollOut }
+  | {
+      type: 'set_settings';
+      teamSize?: number;
+      rollOut?: PickupRollOut;
+      mapMethod?: PickupMapMethod;
+      poolId?: number | null;
+    }
+  | { type: 'vote_map'; map: string }
   | { type: 'roll_out'; playerId: string; version: number }
   | {
       type: 'start_draft';
