@@ -26,6 +26,9 @@ export interface LobbyBody {
     >;
     waiting: Array<{ playerId: string }>;
     invited: Array<{ playerId: string; name: string; inLobby: boolean }>;
+    substitutes: string[];
+    leavers: Array<{ playerId: string; name: string }>;
+    subFailed: { outId: string; inId: string } | null;
     log: Array<{ type: string; data: Record<string, string | number | boolean | null> }>;
     deadline: number | null;
     pickedMap: string | null;

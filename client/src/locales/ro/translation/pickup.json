@@ -152,7 +152,11 @@
       "visibility_open": "{{actor}} let everyone join.",
       "visibility_invite": "{{actor}} made the lobby invited only.",
       "invited": "{{actor}} invited {{player}}.",
-      "invite_revoked": "{{actor}} took back {{player}}'s invite."
+      "invite_revoked": "{{actor}} took back {{player}}'s invite.",
+      "substituted": "{{actor}} brought {{player}} in for {{other}}.",
+      "substitution_failed": "The match server did not take {{player}} for {{other}}.",
+      "substitution_retried": "{{actor}} sent the substitution of {{player}} for {{other}} again.",
+      "substitution_undone": "{{actor}} undid the substitution: {{other}} plays on, {{player}} waits."
     },
     "refusal": {
       "closed": "This lobby is closed.",
@@ -180,7 +184,10 @@
       "not_invited": "That player is not invited.",
       "invite_limit": "The invite list is full.",
       "unknown_player": "That player has never signed in to the site.",
-      "invite_link_invalid": "That invite link no longer works. Ask the host for a new one."
+      "invite_link_invalid": "That invite link no longer works. Ask the host for a new one.",
+      "not_on_roster": "That player is not playing in the match.",
+      "not_eligible": "Only someone in the waiting room can come in.",
+      "already_subbed_out": "That player already left this match and cannot come back into it."
     },
     "ready": {
       "title": "Ready check",
@@ -241,6 +248,16 @@
       "none": "Nobody is invited yet.",
       "inviteOnly": "Invited players only.",
       "notInvited": "This lobby is for invited players only. Ask its host for an invite."
+    },
+    "substitute": {
+      "title": "Substitution",
+      "out": "Goes out",
+      "in": "Comes in",
+      "go": "Substitute",
+      "retry": "Retry",
+      "undo": "Undo",
+      "failed": "The match server did not take {{in}} for {{out}}. Retry, or undo it so {{out}} plays on.",
+      "left": "Left this match: {{names}}"
     }
   }
 }

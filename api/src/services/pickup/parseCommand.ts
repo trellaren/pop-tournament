@@ -117,6 +117,20 @@ export function parseCommand(body: Untrusted): { command: CommandInput; version?
     case 'roll_out':
     case 'make_host':
       return { command: { type: fields.type, playerId: playerIdOf(fields.playerId) }, version };
+    case 'substitute':
+      return {
+        command: {
+          type: 'substitute',
+          outId: playerIdOf(fields.outId),
+          inId: playerIdOf(fields.inId),
+        },
+        version,
+      };
+    case 'substitution_action':
+      if (fields.action !== 'retry' && fields.action !== 'undo') {
+        throw bad('action must be "retry" or "undo"');
+      }
+      return { command: { type: 'substitution_action', action: fields.action }, version };
     case 'lock_teams':
       if (typeof fields.locked !== 'boolean') throw bad('locked must be true or false');
       return { command: { type: 'lock_teams', locked: fields.locked }, version };

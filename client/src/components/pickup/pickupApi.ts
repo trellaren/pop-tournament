@@ -24,6 +24,8 @@ export type PickupCommandType =
   | 'lock_teams'
   | 'invite'
   | 'revoke_invite'
+  | 'substitute'
+  | 'substitution_action'
   | 'set_settings'
   | 'roll_out'
   | 'start_draft'
@@ -60,6 +62,8 @@ export interface PickupLogLine {
   actorId: string;
   actorName: string;
   playerName: string | null;
+  /** A second player the line is about: who went out in a substitution. */
+  otherName: string | null;
   data: Record<string, string | number | boolean | null>;
 }
 
@@ -96,6 +100,12 @@ export interface PickupLobby {
   draft: { captains: Record<Side, string>; turn: Side | null; pool: PickupPlayer[] } | null;
   teams: Record<Side, PickupPlayer[]>;
   waiting: PickupPlayer[];
+  /** Who may come in for a seated player during the match, longest wait first. */
+  substitutes: string[];
+  /** Who left the running match by substitution. */
+  leavers: Array<{ playerId: string; name: string }>;
+  /** A substitution the match server did not take. */
+  subFailed: { outId: string; outName: string; inId: string; inName: string } | null;
   /** The invite list; empty unless the viewer runs the lobby. */
   invited: Array<{ playerId: string; name: string; inLobby: boolean }>;
   log: PickupLogLine[];
@@ -115,6 +125,8 @@ export interface PickupSummary {
 
 export type PickupCommand =
   | { type: 'join'; side: Side | null; invite?: string }
+  | { type: 'substitute'; outId: string; inId: string; version: number }
+  | { type: 'substitution_action'; action: 'retry' | 'undo'; version: number }
   | { type: 'invite'; playerId: string }
   | { type: 'revoke_invite'; playerId: string }
   | { type: 'leave' }

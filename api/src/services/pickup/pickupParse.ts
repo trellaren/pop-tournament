@@ -8,6 +8,7 @@ import {
   ROLL_OUT_RULES,
   VISIBILITIES,
   type Draft,
+  type Lobby,
   type LobbySettings,
 } from './rules';
 import type { Untrusted } from '../../utils/untrusted';
@@ -83,4 +84,26 @@ export function parseVotes(raw: string | null): Record<string, string> {
     // Unreadable votes read as none.
   }
   return votes;
+}
+
+/** Who left the running match, and a substitution its server did not take. */
+export function parseSubstitution(raw: string | null): Pick<Lobby, 'leavers' | 'subFailed'> {
+  const none = { leavers: [], subFailed: null };
+  if (!raw) return none;
+  try {
+    const parsed: Untrusted = JSON.parse(raw);
+    if (typeof parsed !== 'object' || parsed === null) return none;
+    const fields: Record<string, Untrusted> = { ...parsed };
+    const leavers = Array.isArray(fields.leavers)
+      ? fields.leavers.filter((id): id is string => typeof id === 'string')
+      : [];
+    const failed: Untrusted = fields.failed;
+    if (typeof failed !== 'object' || failed === null) return { leavers, subFailed: null };
+    const { outId, inId, side }: Record<string, Untrusted> = { ...failed };
+    if (typeof outId !== 'string' || typeof inId !== 'string') return { leavers, subFailed: null };
+    if (side !== 'a' && side !== 'b') return { leavers, subFailed: null };
+    return { leavers, subFailed: { outId, inId, side } };
+  } catch {
+    return none;
+  }
 }

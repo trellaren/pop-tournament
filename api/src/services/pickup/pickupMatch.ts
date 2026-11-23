@@ -143,3 +143,25 @@ export async function cancelPickupMatch(slug: string): Promise<void> {
   const { settleEndedMatch } = await import('../matchTerminationService');
   await settleEndedMatch(match, 'pickup-cancel');
 }
+
+/**
+ * Put a substitute into the lobby's match in the leaver's place, through the
+ * game's own roster change. False when the match server did not take it.
+ */
+export async function substituteInMatch(
+  slug: string,
+  outId: string,
+  inId: string,
+  side: Side
+): Promise<boolean> {
+  if (!hasIntegration(PICKUP_GAME)) return false;
+  const names = await loadNames([inId]);
+  const substitute = getIntegration(PICKUP_GAME).substitutePlayer;
+  if (!substitute) return false;
+  return substitute(slug, {
+    outId,
+    inId,
+    inName: names.get(inId)?.name ?? inId,
+    team: side === 'a' ? 'team1' : 'team2',
+  });
+}

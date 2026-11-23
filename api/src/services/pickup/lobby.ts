@@ -87,6 +87,13 @@ export interface LobbySettings {
   poolId: number | null;
 }
 
+/** A substitution: who went out, who came in, on which side. */
+export interface FailedSubstitution {
+  outId: string;
+  inId: string;
+  side: Side;
+}
+
 export interface Lobby {
   id: string;
   state: LobbyState;
@@ -107,6 +114,10 @@ export interface Lobby {
   draft: Draft | null;
   /** The running map vote: player id to map id. */
   votes: Readonly<Record<string, string>>;
+  /** Who was substituted out of the running match: nobody comes back into the same match. */
+  leavers: readonly string[];
+  /** A substitution the match server did not take, until the host retries or undoes it. */
+  subFailed: FailedSubstitution | null;
   /** Who may join while only the invited can; kept whatever the setting, and when they leave. */
   invited: readonly string[];
   players: LobbyPlayer[];
@@ -123,6 +134,8 @@ export type Command =
       side: Side | null;
       /** Came by an invite link that checked out. */ byLink?: boolean;
     }
+  | { type: 'substitute'; outId: string; inId: string }
+  | { type: 'substitution_action'; action: 'retry' | 'undo' }
   | { type: 'invite'; playerId: string }
   | { type: 'revoke_invite'; playerId: string }
   | { type: 'leave' }
@@ -167,6 +180,7 @@ export type SystemCommand =
   | { type: 'match_ended'; slug: string; winner: Side | null }
   | { type: 'match_cancelled'; slug: string }
   | { type: 'match_failed'; slug: string }
+  | { type: 'substitution_failed'; slug: string; outId: string; inId: string }
   | { type: 'idle_timeout' };
 
 export type RefusalCode =
@@ -189,7 +203,10 @@ export type RefusalCode =
   | 'invite_only'
   | 'already_invited'
   | 'not_invited'
-  | 'invite_limit';
+  | 'invite_limit'
+  | 'not_on_roster'
+  | 'not_eligible'
+  | 'already_subbed_out';
 
 export type EventData = Readonly<Record<string, string | number | boolean | null>>;
 
@@ -205,7 +222,8 @@ export type Effect =
   | { type: 'pick_timer'; deadline: number }
   | { type: 'vote_timer'; deadline: number }
   | { type: 'create_match'; slug: string; veto: boolean }
-  | { type: 'cancel_match'; slug: string };
+  | { type: 'cancel_match'; slug: string }
+  | { type: 'substitute'; slug: string; outId: string; inId: string; side: Side };
 
 export type Outcome =
   | { ok: true; lobby: Lobby; events: LobbyEvent[]; effects: Effect[] }
@@ -250,6 +268,8 @@ export function newLobby(id: string, hostId: string, now: number): Lobby {
     matchSlug: null,
     draft: null,
     votes: {},
+    leavers: [],
+    subFailed: null,
     invited: [],
     players: [
       {
@@ -310,6 +330,8 @@ export function toGathering(lobby: Lobby): Lobby {
     matchSlug: null,
     draft: null,
     votes: {},
+    leavers: [],
+    subFailed: null,
     players: lobby.players.map((p) => (p.ready ? { ...p, ready: false } : p)),
   };
 }
