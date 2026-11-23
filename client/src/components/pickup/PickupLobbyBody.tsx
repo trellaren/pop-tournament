@@ -10,6 +10,7 @@ import { EmptyPanel } from '../common/ui';
 import { apiErrorMessage } from '../../utils/api';
 import { PickupControls } from './PickupControls';
 import { PickupDraftBanner, PickupDraftPool } from './PickupDraft';
+import { PickupInvites } from './PickupInvites';
 import { PickupLog } from './PickupLog';
 import { PickupStatus } from './PickupStatus';
 import { PickupTeamPanel } from './PickupTeamPanel';
@@ -26,16 +27,29 @@ interface PickupLobbyBodyProps {
   viewerId: string | null;
   /** Shown under "this lobby is closed" and "does not exist": the way back. */
   whenGone: React.ReactNode;
+  /** The token of the invite link the viewer came by, if any. */
+  inviteToken?: string | null;
 }
 
-export function PickupLobbyBody({ lobbyId, viewerId, whenGone }: PickupLobbyBodyProps) {
+export function PickupLobbyBody({
+  lobbyId,
+  viewerId,
+  whenGone,
+  inviteToken = null,
+}: PickupLobbyBodyProps) {
   const { t } = useTranslation();
-  const { lobby, ready, missing, reload } = usePickupLobby(lobbyId);
+  const { lobby: read, ready, missing, reload } = usePickupLobby(lobbyId);
+  // Someone holding an invite link may join a lobby the server says they cannot: the link is
+  // checked when they do.
+  const byLink = Boolean(inviteToken) && read?.me === null && read.state !== 'closed';
+  const lobby = read && byLink ? { ...read, can: { ...read.can, join: true } } : read;
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState('');
 
-  const onCommand = (command: PickupCommand) => {
+  const onCommand = (asked: PickupCommand) => {
     if (!lobbyId) return;
+    const command =
+      asked.type === 'join' && byLink && inviteToken ? { ...asked, invite: inviteToken } : asked;
     setBusy(true);
     setError('');
     sendPickupCommand(lobbyId, command)
@@ -74,6 +88,18 @@ export function PickupLobbyBody({ lobbyId, viewerId, whenGone }: PickupLobbyBody
       )}
       {lobby && lobby.state !== 'closed' && (
         <>
+          {lobby.settings.visibility === 'invite' && (
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              sx={{ mb: 2 }}
+              data-testid="pickup-invite-only"
+            >
+              {lobby.me === null && !lobby.can.join
+                ? t('pickup.invites.notInvited')
+                : t('pickup.invites.inviteOnly')}
+            </Typography>
+          )}
           <PickupStatus lobby={lobby} busy={busy} onCommand={onCommand} onDeadline={reload} />
           <PickupDraftBanner lobby={lobby} busy={busy} onCommand={onCommand} onDeadline={reload} />
           <Box
@@ -116,6 +142,7 @@ export function PickupLobbyBody({ lobbyId, viewerId, whenGone }: PickupLobbyBody
               busy={busy}
               onCommand={onCommand}
             />
+            <PickupInvites lobby={lobby} busy={busy} onCommand={onCommand} />
             <PickupLog lines={lobby.log} />
           </Box>
         </>

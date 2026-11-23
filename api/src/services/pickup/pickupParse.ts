@@ -6,6 +6,7 @@ import {
   MAX_TEAM_SIZE,
   MIN_TEAM_SIZE,
   ROLL_OUT_RULES,
+  VISIBILITIES,
   type Draft,
   type LobbySettings,
 } from './rules';
@@ -41,6 +42,7 @@ export function parseDraft(raw: string | null): Draft | null {
 export function parseSettings(raw: string): LobbySettings {
   const settings: LobbySettings = {
     format: 'classic',
+    visibility: 'open',
     teamSize: DEFAULT_TEAM_SIZE,
     rollOut: 'most_played',
     mapMethod: 'pick',
@@ -50,6 +52,7 @@ export function parseSettings(raw: string): LobbySettings {
     const parsed: Untrusted = JSON.parse(raw);
     if (typeof parsed !== 'object' || parsed === null) return settings;
     const fields: Record<string, Untrusted> = { ...parsed };
+    settings.visibility = VISIBILITIES.find((v) => v === fields.visibility) ?? 'open';
     settings.format = FORMATS.find((f) => f === fields.format) ?? settings.format;
     const size = Number(fields.teamSize);
     if (Number.isInteger(size) && size >= MIN_TEAM_SIZE && size <= MAX_TEAM_SIZE) {

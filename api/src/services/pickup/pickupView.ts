@@ -7,6 +7,7 @@ import {
   allowed,
   draftPool,
   turnOf,
+  mayManage,
   seated,
   waiting,
   type Actor,
@@ -101,6 +102,8 @@ export interface LobbyView {
   } | null;
   teams: Record<Side, PlayerView[]>;
   waiting: PlayerView[];
+  /** The invite list, for the host and admins only; empty for everyone else. */
+  invited: Array<{ playerId: string; name: string; inLobby: boolean }>;
   log: LogLine[];
   /** Where the viewer is: a side, 'waiting', or null when not in the lobby. */
   me: Side | 'waiting' | null;
@@ -164,7 +167,11 @@ export async function buildView(lobby: Lobby, viewer: Actor): Promise<LobbyView>
     const about = e.data.playerId;
     return typeof about === 'string' ? [e.actorId, about] : [e.actorId];
   });
-  const [names, ratings] = await Promise.all([loadNames([...ids, ...mentioned]), ratingsOf(ids)]);
+  const invited = mayManage(lobby, viewer) ? lobby.invited : [];
+  const [names, ratings] = await Promise.all([
+    loadNames([...ids, ...mentioned, ...invited]),
+    ratingsOf(ids),
+  ]);
   const row = (p: LobbyPlayer) => playerView(p, lobby, names, ratings);
   const bySeat = (x: LobbyPlayer, y: LobbyPlayer) => x.joinedAt - y.joinedAt;
   return {
@@ -196,6 +203,11 @@ export async function buildView(lobby: Lobby, viewer: Actor): Promise<LobbyView>
       b: seated(lobby, 'b').sort(bySeat).map(row),
     },
     waiting: waiting(lobby).map(row),
+    invited: invited.map((playerId) => ({
+      playerId,
+      name: names.get(playerId)?.name ?? UNKNOWN_PLAYER,
+      inLobby: ids.includes(playerId),
+    })),
     log: events.map((e) => {
       const about = e.data.playerId;
       return {

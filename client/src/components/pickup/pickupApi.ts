@@ -22,6 +22,8 @@ export type PickupCommandType =
   | 'scramble'
   | 'balance'
   | 'lock_teams'
+  | 'invite'
+  | 'revoke_invite'
   | 'set_settings'
   | 'roll_out'
   | 'start_draft'
@@ -63,6 +65,9 @@ export interface PickupLogLine {
 
 export type PickupFormat = 'classic' | 'wingman';
 
+/** Who can join: everyone, or only the invited. */
+export type PickupVisibility = 'open' | 'invite';
+
 export interface PickupLobby {
   id: string;
   state: 'gathering' | 'drafting' | 'ready_check' | 'map_vote' | 'in_match' | 'closed';
@@ -71,6 +76,7 @@ export interface PickupLobby {
   teamsLocked: boolean;
   settings: {
     format: PickupFormat;
+    visibility: PickupVisibility;
     teamSize: number;
     rollOut: PickupRollOut;
     mapMethod: PickupMapMethod;
@@ -90,6 +96,8 @@ export interface PickupLobby {
   draft: { captains: Record<Side, string>; turn: Side | null; pool: PickupPlayer[] } | null;
   teams: Record<Side, PickupPlayer[]>;
   waiting: PickupPlayer[];
+  /** The invite list; empty unless the viewer runs the lobby. */
+  invited: Array<{ playerId: string; name: string; inLobby: boolean }>;
   log: PickupLogLine[];
   me: Side | 'waiting' | null;
   can: Record<PickupCommandType, boolean>;
@@ -106,7 +114,9 @@ export interface PickupSummary {
 }
 
 export type PickupCommand =
-  | { type: 'join'; side: Side | null }
+  | { type: 'join'; side: Side | null; invite?: string }
+  | { type: 'invite'; playerId: string }
+  | { type: 'revoke_invite'; playerId: string }
   | { type: 'leave' }
   | { type: 'move'; playerId: string; side: Side | null }
   | { type: 'kick'; playerId: string }
@@ -117,6 +127,7 @@ export type PickupCommand =
   | {
       type: 'set_settings';
       format?: PickupFormat;
+      visibility?: PickupVisibility;
       teamSize?: number;
       rollOut?: PickupRollOut;
       mapMethod?: PickupMapMethod;
@@ -156,9 +167,12 @@ export interface PickupActivitySignIn {
   playerId: string;
 }
 
-export async function pickupActivityClientId(): Promise<string | null> {
-  const answer = await api.get<{ clientId: string | null }>('/api/pickup/activity/config');
-  return answer.clientId;
+/** What the Activity starts from: Discord's application id and the site's public address. */
+export function pickupActivityConfig(): Promise<{
+  clientId: string | null;
+  siteUrl: string | null;
+}> {
+  return api.get('/api/pickup/activity/config');
 }
 
 export function signInToPickupActivity(code: string): Promise<PickupActivitySignIn> {
@@ -167,6 +181,15 @@ export function signInToPickupActivity(code: string): Promise<PickupActivitySign
 
 export async function sendPickupCommand(lobbyId: string, command: PickupCommand): Promise<void> {
   await api.post(`/api/pickup/${encodeURIComponent(lobbyId)}/commands`, command);
+}
+
+/** A new invite link to the lobby: the page's path with its token. Host and admins only. */
+export async function makePickupInviteLink(lobbyId: string): Promise<string> {
+  const answer = await api.post<{ path: string }>(
+    `/api/pickup/${encodeURIComponent(lobbyId)}/invite-link`,
+    {}
+  );
+  return answer.path;
 }
 
 /** The refusal's code from a failed call (`side_full`, `stale`…), or null. */

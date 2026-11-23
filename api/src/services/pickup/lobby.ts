@@ -71,8 +71,15 @@ export const ROLL_OUT_RULES: readonly RollOutRule[] = ['most_played', 'losers'];
 /** A gathering lobby nobody has touched for this long closes. */
 export const IDLE_SECONDS = 2 * 60 * 60;
 
+/** Who can join: everyone, or only those the host invited. Never who can see. */
+export type Visibility = 'open' | 'invite';
+export const VISIBILITIES: readonly Visibility[] = ['open', 'invite'];
+/** No more than this many people on a lobby's invite list. */
+export const MAX_INVITES = 100;
+
 export interface LobbySettings {
   format: LobbyFormat;
+  visibility: Visibility;
   teamSize: number;
   rollOut: RollOutRule;
   mapMethod: MapMethod;
@@ -100,6 +107,8 @@ export interface Lobby {
   draft: Draft | null;
   /** The running map vote: player id to map id. */
   votes: Readonly<Record<string, string>>;
+  /** Who may join while only the invited can; kept whatever the setting, and when they leave. */
+  invited: readonly string[];
   players: LobbyPlayer[];
 }
 
@@ -109,7 +118,13 @@ export interface Actor {
 }
 
 export type Command =
-  | { type: 'join'; side: Side | null }
+  | {
+      type: 'join';
+      side: Side | null;
+      /** Came by an invite link that checked out. */ byLink?: boolean;
+    }
+  | { type: 'invite'; playerId: string }
+  | { type: 'revoke_invite'; playerId: string }
   | { type: 'leave' }
   | { type: 'move'; playerId: string; side: Side | null }
   | { type: 'kick'; playerId: string }
@@ -120,6 +135,7 @@ export type Command =
   | {
       type: 'set_settings';
       format?: LobbyFormat;
+      visibility?: Visibility;
       teamSize?: number;
       rollOut?: RollOutRule;
       mapMethod?: MapMethod;
@@ -169,7 +185,11 @@ export type RefusalCode =
   | 'in_match'
   | 'teams_not_full'
   | 'not_your_turn'
-  | 'invalid_captains';
+  | 'invalid_captains'
+  | 'invite_only'
+  | 'already_invited'
+  | 'not_invited'
+  | 'invite_limit';
 
 export type EventData = Readonly<Record<string, string | number | boolean | null>>;
 
@@ -217,6 +237,7 @@ export function newLobby(id: string, hostId: string, now: number): Lobby {
     version: 1,
     settings: {
       format: 'classic',
+      visibility: 'open',
       teamSize: DEFAULT_TEAM_SIZE,
       rollOut: 'most_played',
       mapMethod: 'pick',
@@ -229,6 +250,7 @@ export function newLobby(id: string, hostId: string, now: number): Lobby {
     matchSlug: null,
     draft: null,
     votes: {},
+    invited: [],
     players: [
       {
         playerId: hostId,

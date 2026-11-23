@@ -10,9 +10,15 @@ export interface PickupHost {
   openOutside: ((path: string) => void) | null;
   /** Re-read the lobby this often (ms); 0: only when the server says it changed. */
   pollMs: number;
+  /** The site's own address, for a link someone else will open. */
+  siteOrigin: string;
 }
 
-export const SITE_HOST: PickupHost = { openOutside: null, pollMs: 0 };
+export const SITE_HOST: PickupHost = {
+  openOutside: null,
+  pollMs: 0,
+  siteOrigin: window.location.origin,
+};
 
 export const PickupHostContext = React.createContext<PickupHost>(SITE_HOST);
 

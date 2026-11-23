@@ -1341,7 +1341,7 @@ export function getSchemaSQL(): string {
       state TEXT NOT NULL, -- 'gathering' | 'drafting' | 'ready_check' | 'map_vote' | 'in_match' | 'closed'
       host_id TEXT NOT NULL,
       version INTEGER NOT NULL DEFAULT 1, -- goes up by one with every change
-      settings TEXT NOT NULL, -- JSON { teamSize, rollOut, mapMethod, poolId }
+      settings TEXT NOT NULL, -- JSON { format, visibility, teamSize, rollOut, mapMethod, poolId }
       teams_locked BOOLEAN NOT NULL DEFAULT FALSE,
       created_at INTEGER NOT NULL,
       closed_at INTEGER,
@@ -1366,6 +1366,14 @@ export function getSchemaSQL(): string {
       PRIMARY KEY (lobby_id, player_id)
     );
     CREATE INDEX IF NOT EXISTS idx_pickup_lobby_players_player ON pickup_lobby_players(player_id);
+
+    -- Who may join a lobby while only the invited can (settings.visibility = 'invite').
+    CREATE TABLE IF NOT EXISTS pickup_lobby_invites (
+      lobby_id TEXT NOT NULL REFERENCES pickup_lobbies(id) ON DELETE CASCADE,
+      player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+      position INTEGER NOT NULL, -- the order they were invited in
+      PRIMARY KEY (lobby_id, player_id)
+    );
 
     -- The matches a lobby started (matches.source = 'pickup').
     CREATE TABLE IF NOT EXISTS pickup_matches (

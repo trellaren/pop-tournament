@@ -27,6 +27,7 @@ import {
   type Side,
   type SystemCommand,
 } from './lobby';
+import { invite, mayEnter, revokeInvite, withInvited, withoutInvite } from './invites';
 import { cancelDraft, isCaptain, pick, pickTimeout, startDraft, turnOf } from './draft';
 import { launch, voteMap, voteTimeout } from './mapVote';
 import { rollOutAfterMatch, rollOutByHand } from './rollout';
@@ -37,6 +38,7 @@ export * from './lobby';
 export { balancedSplit, shuffled } from './teams';
 export { draftPool, sideOfPick, turnOf } from './draft';
 export { voteWinner } from './mapVote';
+export { isInvited, mayEnter } from './invites';
 
 /** Commands that must name the version they were drawn for. */
 const ONE_SHOT: ReadonlySet<CommandType> = new Set([
@@ -57,6 +59,8 @@ const MANAGE_ONLY: ReadonlySet<CommandType> = new Set([
   'scramble',
   'balance',
   'lock_teams',
+  'invite',
+  'revoke_invite',
   'set_settings',
   'roll_out',
   'start_draft',
@@ -93,7 +97,10 @@ export function allowed(lobby: Lobby, actor: Actor): Record<CommandType, boolean
   const seatedCount = allSeated(lobby).length;
   const playing = lobby.state === 'in_match' && Boolean(mine?.side);
   return {
-    join: open && (!mine || (gathering && (!lobby.teamsLocked || manage))),
+    join:
+      open && (mine ? gathering && (!lobby.teamsLocked || manage) : mayEnter(lobby, actor, false)),
+    invite: manage,
+    revoke_invite: manage,
     leave: open && Boolean(mine) && !playing,
     move: manage && gathering,
     kick: manage,
@@ -114,7 +121,13 @@ export function allowed(lobby: Lobby, actor: Actor): Record<CommandType, boolean
   };
 }
 
-function join(lobby: Lobby, actor: Actor, side: Side | null, ctx: Context): Outcome {
+function join(
+  lobby: Lobby,
+  actor: Actor,
+  side: Side | null,
+  byLink: boolean,
+  ctx: Context
+): Outcome {
   const mine = lobby.players.find((p) => p.playerId === actor.playerId);
   const gathering = lobby.state === 'gathering';
   if (mine) {
@@ -122,6 +135,7 @@ function join(lobby: Lobby, actor: Actor, side: Side | null, ctx: Context): Outc
     if (!gathering) return refuse('wrong_state');
     if (lobby.teamsLocked && !mayManage(lobby, actor)) return refuse('teams_locked');
   } else {
+    if (!mayEnter(lobby, actor, byLink)) return refuse('invite_only');
     if (lobby.players.length >= MAX_LOBBY_PLAYERS) return refuse('lobby_full');
     if (side !== null && !gathering) return refuse('wrong_state');
     if (side !== null && lobby.teamsLocked && !mayManage(lobby, actor)) {
@@ -137,7 +151,10 @@ function join(lobby: Lobby, actor: Actor, side: Side | null, ctx: Context): Outc
     ready: false,
     gamesInRow: 0,
   };
-  return done(withPlayer(lobby, place(base, side, ctx.now)), [
+  // Whoever comes by a link goes on the list, so they can come back without it.
+  const invited = !mine && byLink ? (withInvited(lobby, [actor.playerId]) ?? lobby.invited) : null;
+  const entered = invited ? { ...lobby, invited } : lobby;
+  return done(withPlayer(entered, place(base, side, ctx.now)), [
     {
       type: mine ? 'moved' : 'joined',
       actorId: actor.playerId,
@@ -246,7 +263,11 @@ export function decide(lobby: Lobby, actor: Actor, command: Command, ctx: Contex
 
   switch (command.type) {
     case 'join':
-      return join(lobby, actor, command.side, ctx);
+      return join(lobby, actor, command.side, command.byLink === true, ctx);
+    case 'invite':
+      return invite(lobby, actor, command.playerId);
+    case 'revoke_invite':
+      return revokeInvite(lobby, actor, command.playerId);
     case 'leave':
       return remove(lobby, actor.playerId, {
         type: 'left',
@@ -257,7 +278,8 @@ export function decide(lobby: Lobby, actor: Actor, command: Command, ctx: Contex
       return move(lobby, actor, command.playerId, command.side, ctx);
     case 'kick':
       if (command.playerId === actor.playerId) return refuse('not_allowed');
-      return remove(lobby, command.playerId, {
+      // A kick takes the invite too, or the person walks straight back in.
+      return remove(withoutInvite(lobby, command.playerId), command.playerId, {
         type: 'kicked',
         actorId: actor.playerId,
         data: { playerId: command.playerId },

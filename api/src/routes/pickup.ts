@@ -12,6 +12,7 @@ import { PickupError, pickupService } from '../services/pickup/pickupService';
 import type { Actor } from '../services/pickup/rules';
 import { parseCommand } from '../services/pickup/parseCommand';
 import type { Untrusted } from '../utils/untrusted';
+import { configuredPublicOrigin } from '../utils/publicOrigin';
 import { bearerOf } from '../services/pickup/activityToken';
 import {
   activityClientId,
@@ -106,7 +107,8 @@ function handle(what: string, fn: (req: Request, res: Response) => Promise<Respo
  *     summary: What the Discord Activity needs to start
  *     description: |
  *       The Discord application's id the Activity authorizes against, or
- *       null while "Sign in with Discord" is not set up. No secret.
+ *       null while "Sign in with Discord" is not set up, and the site's
+ *       public address, for links opened outside Discord. No secret.
  *     responses:
  *       200:
  *         description: The Activity's configuration
@@ -114,7 +116,12 @@ function handle(what: string, fn: (req: Request, res: Response) => Promise<Respo
 router.get(
   '/activity/config',
   handle('read the Activity configuration', async (_req, res) => {
-    return res.json({ success: true, clientId: activityClientId() });
+    return res.json({
+      success: true,
+      clientId: activityClientId(),
+      // Inside Discord the page's own address is Discord's proxy, not the site.
+      siteUrl: configuredPublicOrigin(),
+    });
   })
 );
 
@@ -256,10 +263,12 @@ router.get(
  *     summary: Act in a pickup lobby
  *     description: |
  *       One command per request: `join` (`side`: `a`, `b` or null for the
- *       waiting room), `leave`, and for the host or an admin `move`
+ *       waiting room; `invite`: an invite link's token, for a lobby only
+ *       the invited can join), `leave`, and for the host or an admin `move`
  *       (`playerId`, `side`), `kick` (`playerId`), `make_host` (`playerId`),
- *       `scramble`, `balance`, `lock_teams` (`locked`), `set_settings`
- *       (`teamSize`, `rollOut`: `most_played` or `losers`, `mapMethod`:
+ *       `scramble`, `balance`, `lock_teams` (`locked`), `invite` and
+ *       `revoke_invite` (`playerId`), `set_settings` (`format`: `classic`
+ *       or `wingman`, `visibility`: `open` or `invite`, `teamSize`, `rollOut`: `most_played` or `losers`, `mapMethod`:
  *       `pick`, `veto` (the two teams veto on the match page) or `vote` (the
  *       seated players vote with `vote_map` (`map`) after the ready check),
  *       `poolId`: one of the platform's map pools, or null), `roll_out`
@@ -332,6 +341,41 @@ router.post(
     const { command, version } = parseCommand(body);
     await pickupService.command(String(req.params.id), actorOf(req), command, version);
     return res.json({ success: true });
+  })
+);
+
+/**
+ * @openapi
+ * /api/pickup/{id}/invite-link:
+ *   post:
+ *     tags: [Pickup]
+ *     summary: Make an invite link to a pickup lobby
+ *     description: |
+ *       For the lobby's host or an admin. The token lets whoever holds it
+ *       join this lobby for twelve hours, while it is open and its maker
+ *       still runs it; send it as `invite` with `join`. The page's address
+ *       for it is `/pickup/{id}?invite={token}`.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: The token
+ *       403:
+ *         description: Not the host or an admin
+ */
+router.post(
+  '/:id/invite-link',
+  requirePlayer,
+  sameSiteJson,
+  handle('make an invite link', async (req, res) => {
+    const id = String(req.params.id);
+    const token = await pickupService.inviteToken(id, actorOf(req));
+    res.set('Cache-Control', 'no-store');
+    return res.json({ success: true, token, path: `/pickup/${id}?invite=${token}` });
   })
 );
 

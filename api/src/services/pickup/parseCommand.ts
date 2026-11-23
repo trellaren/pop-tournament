@@ -1,7 +1,15 @@
 /** Reading a lobby command from a request body: anything not understood is refused. */
+import { looksLikeInviteToken } from './inviteToken';
 import type { Untrusted } from '../../utils/untrusted';
 import { PickupError, type CommandInput } from './pickupService';
-import { CAPTAIN_METHODS, FORMATS, MAP_METHODS, ROLL_OUT_RULES, type Side } from './rules';
+import {
+  CAPTAIN_METHODS,
+  FORMATS,
+  MAP_METHODS,
+  VISIBILITIES,
+  ROLL_OUT_RULES,
+  type Side,
+} from './rules';
 
 const bad = (message: string) => new PickupError(400, 'bad_request', message);
 
@@ -25,6 +33,10 @@ function settingsCommand(fields: Record<string, Untrusted>): CommandInput {
   }
   const format = FORMATS.find((f) => f === fields.format);
   if (fields.format !== undefined && !format) throw bad('format must be "classic" or "wingman"');
+  const visibility = VISIBILITIES.find((v) => v === fields.visibility);
+  if (fields.visibility !== undefined && !visibility) {
+    throw bad('visibility must be "open" or "invite"');
+  }
   const rollOut = ROLL_OUT_RULES.find((rule) => rule === fields.rollOut);
   if (fields.rollOut !== undefined && !rollOut) throw bad(BAD_ROLL_OUT);
   const mapMethod = MAP_METHODS.find((method) => method === fields.mapMethod);
@@ -34,12 +46,20 @@ function settingsCommand(fields: Record<string, Untrusted>): CommandInput {
   if (poolId !== undefined && poolId !== null && typeof poolId !== 'number') {
     throw bad('poolId must be a pool id or null');
   }
-  if (teamSize === undefined && !format && !rollOut && !mapMethod && poolId === undefined) {
+  if (
+    teamSize === undefined &&
+    !format &&
+    !visibility &&
+    !rollOut &&
+    !mapMethod &&
+    poolId === undefined
+  ) {
     throw bad('Send a setting to change');
   }
   return {
     type: 'set_settings',
     ...(format ? { format } : {}),
+    ...(visibility ? { visibility } : {}),
     ...(teamSize === undefined ? {} : { teamSize }),
     ...(rollOut ? { rollOut } : {}),
     ...(mapMethod ? { mapMethod } : {}),
@@ -69,8 +89,14 @@ export function parseCommand(body: Untrusted): { command: CommandInput; version?
   }
   const version = typeof rawVersion === 'number' ? rawVersion : undefined;
   switch (fields.type) {
-    case 'join':
-      return { command: { type: 'join', side: sideOf(fields.side) }, version };
+    case 'join': {
+      const { invite } = fields;
+      if (invite !== undefined && (typeof invite !== 'string' || !looksLikeInviteToken(invite))) {
+        throw bad('invite must be the token of an invite link');
+      }
+      const side = sideOf(fields.side);
+      return { command: { type: 'join', side, ...(invite ? { invite } : {}) }, version };
+    }
     case 'leave':
     case 'scramble':
     case 'balance':
@@ -85,6 +111,8 @@ export function parseCommand(body: Untrusted): { command: CommandInput; version?
         version,
       };
     case 'kick':
+    case 'invite':
+    case 'revoke_invite':
     case 'pick':
     case 'roll_out':
     case 'make_host':
