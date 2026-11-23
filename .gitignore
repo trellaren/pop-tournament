@@ -91,3 +91,4 @@ ci-prebuilt/
 
 # Generated when the image is built (scripts/third-party-notices.mjs)
 /THIRD_PARTY_NOTICES.md
+docker/pop-image.env

@@ -51,6 +51,16 @@ const CLIENT_SRC = path.join(ROOT, 'client', 'src');
 const MODULE_CLIENT = path.join(CLIENT_SRC, 'integrations', 'cs2');
 const SDK_INDEX = path.join(CLIENT_SRC, 'module-sdk', 'index.ts');
 
+/** The version to stamp: the platform's, or AT_MODULE_VERSION when it is a plain x.y.z. */
+function moduleVersion(platformVersion: string): string {
+  const named = (process.env.AT_MODULE_VERSION ?? '').trim();
+  if (named === '') return platformVersion;
+  if (!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(named)) {
+    fail(`AT_MODULE_VERSION must be x.y.z, not '${named}'`);
+  }
+  return named;
+}
+
 function fail(message: string): never {
   console.error(`build cs2: ${message}`);
   process.exit(1);
@@ -209,8 +219,10 @@ async function main(): Promise<void> {
   const manifest = {
     id: 'cs2',
     name: 'Counter-Strike 2',
-    // Built in lockstep with the platform while the module APIs are 0.x.
-    version: pkg.version,
+    // Built in lockstep with the platform while the module APIs are 0.x. A
+    // fork's own build names a higher version (AT_MODULE_VERSION), so an
+    // instance that has the published module installed updates to it.
+    version: moduleVersion(pkg.version),
     serverApi: `^${SERVER_API_VERSION}`,
     clientApi: `^${CLIENT_API_VERSION}`,
     server: 'server/index.mjs',
