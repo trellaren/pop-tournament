@@ -97,6 +97,9 @@ export function parseCommand(body: Untrusted): { command: CommandInput; version?
     case 'leave':
     case 'scramble':
     case 'balance':
+    case 'start':
+    case 'ready':
+    case 'cancel':
     case 'close':
       return { command: { type: fields.type }, version };
     case 'move':
@@ -110,6 +113,11 @@ export function parseCommand(body: Untrusted): { command: CommandInput; version?
     case 'lock_teams':
       if (typeof fields.locked !== 'boolean') throw bad('locked must be true or false');
       return { command: { type: 'lock_teams', locked: fields.locked }, version };
+    case 'pick_map':
+      if (fields.map !== null && typeof fields.map !== 'string') {
+        throw bad('map must be a map id or null');
+      }
+      return { command: { type: 'pick_map', map: fields.map }, version };
     case 'set_settings':
       if (typeof fields.teamSize !== 'number') throw bad('teamSize must be a number');
       return { command: { type: 'set_settings', teamSize: fields.teamSize }, version };
@@ -206,8 +214,13 @@ router.get(
  *       waiting room), `leave`, and for the host or an admin `move`
  *       (`playerId`, `side`), `kick` (`playerId`), `make_host` (`playerId`),
  *       `scramble`, `balance`, `lock_teams` (`locked`), `set_settings`
- *       (`teamSize`) and `close`. `scramble`, `balance` and `close` must send
- *       the lobby's `version`; a stale one is refused with 409 `stale`.
+ *       (`teamSize`), `pick_map` (`map`: a map id, or null to draw one),
+ *       `start` (the ready check; both teams must be full), `cancel` (the
+ *       ready check or the running match) and `close`. A seated player
+ *       answers the ready check with `ready`; when everyone has, the match is
+ *       created and waits for a free server. `scramble`, `balance`, `start`,
+ *       `cancel` and `close` must send the lobby's `version`; a stale one is
+ *       refused with 409 `stale`.
  *       Refusals are 409 with a `code` (403 `not_allowed`).
  *     parameters:
  *       - in: path
@@ -236,6 +249,9 @@ router.get(
  *                 type: boolean
  *               teamSize:
  *                 type: integer
+ *               map:
+ *                 type: string
+ *                 nullable: true
  *     responses:
  *       200:
  *         description: Done

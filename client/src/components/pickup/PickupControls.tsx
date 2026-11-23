@@ -11,11 +11,13 @@ interface PickupControlsProps {
 }
 
 const TEAM_SIZES = [1, 2, 3, 4, 5];
+const RANDOM_MAP = 'random';
 
 export function PickupControls({ lobby, busy, onCommand }: PickupControlsProps) {
   const { t } = useTranslation();
   const { can, version } = lobby;
-  const manages = can.close;
+  const manages = can.lock_teams;
+  const pickedName = lobby.maps.find((map) => map.id === lobby.pickedMap)?.name ?? lobby.pickedMap;
 
   return (
     <Panel sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
@@ -45,9 +47,65 @@ export function PickupControls({ lobby, busy, onCommand }: PickupControlsProps) 
           {t('pickup.settings.versus', { size: lobby.settings.teamSize })}
         </Typography>
       )}
+      {can.pick_map ? (
+        <TextField
+          select
+          size="small"
+          label={t('pickup.settings.map')}
+          value={lobby.pickedMap ?? RANDOM_MAP}
+          disabled={busy}
+          onChange={(event) =>
+            onCommand({
+              type: 'pick_map',
+              map: event.target.value === RANDOM_MAP ? null : event.target.value,
+            })
+          }
+          slotProps={{ htmlInput: { 'data-testid': 'pickup-map' } }}
+        >
+          <MenuItem value={RANDOM_MAP}>{t('pickup.settings.randomMap')}</MenuItem>
+          {lobby.maps.map((map) => (
+            <MenuItem key={map.id} value={map.id}>
+              {map.name}
+            </MenuItem>
+          ))}
+        </TextField>
+      ) : (
+        <Typography variant="body2" color="text.secondary">
+          {t('pickup.settings.mapIs', { map: pickedName ?? t('pickup.settings.randomMap') })}
+        </Typography>
+      )}
       <Typography variant="body2" color="text.secondary">
         {lobby.teamsLocked ? t('pickup.teamsLocked') : t('pickup.teamsOpen')}
       </Typography>
+
+      {manages && lobby.state === 'gathering' && (
+        <Button
+          variant="contained"
+          disabled={busy || !can.start}
+          data-testid="pickup-start"
+          onClick={() => onCommand({ type: 'start', version })}
+        >
+          {t('pickup.controls.start')}
+        </Button>
+      )}
+      {manages && lobby.state === 'gathering' && !can.start && (
+        <Typography variant="caption" color="text.secondary">
+          {t('pickup.controls.startHint')}
+        </Typography>
+      )}
+      {can.cancel && (
+        <Button
+          variant="outlined"
+          color="error"
+          disabled={busy}
+          data-testid="pickup-cancel"
+          onClick={() => onCommand({ type: 'cancel', version })}
+        >
+          {lobby.state === 'in_match'
+            ? t('pickup.controls.cancelMatch')
+            : t('pickup.controls.cancelStart')}
+        </Button>
+      )}
 
       {manages && (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -78,7 +136,7 @@ export function PickupControls({ lobby, busy, onCommand }: PickupControlsProps) 
           <Button
             variant="outlined"
             color="error"
-            disabled={busy}
+            disabled={busy || !can.close}
             data-testid="pickup-close"
             onClick={() => onCommand({ type: 'close', version })}
           >

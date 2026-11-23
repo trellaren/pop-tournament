@@ -312,8 +312,8 @@ against what poop_flash does when its step starts, and a gap is built.
 | Wingman                                                   | Platform's wingman matches; lobby format built, step 8                                          |
 | Server launch, teams on the server, map change            | Platform with Ready Up                                                                          |
 | Launch failure: Retry, Keep waiting, Start anyway         | Platform's allocation and recovery; the lobby shows the state and offers Cancel and Retry       |
-| Manual mode, Report result, Fix result                    | Build: a lobby with no free server can still play and report by hand, step 2                    |
-| Valve private match with queue code                       | Build, with step 2                                                                              |
+| Manual mode, Report result, Fix result                    | Build: a lobby with no free server can still play and report by hand, its own step after step 3 |
+| Valve private match with queue code                       | Build, in its own step after step 3                                                             |
 | Discord panel with buttons and menus                      | Build, step 4                                                                                   |
 | Voice channels per match, Split teams, Bring back         | Build on the add-on, step 4                                                                     |
 | Pings and announcements                                   | Build on the add-on, step 4                                                                     |

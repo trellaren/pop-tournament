@@ -18,7 +18,27 @@ const KNOWN = new Set([
   'teams_unlocked',
   'settings_changed',
   'closed',
+  'map_picked',
+  'ready_check',
+  'ready_timed_out',
+  'start_cancelled',
+  'match_starting',
+  'match_ended',
+  'match_cancelled',
+  'match_failed',
 ]);
+
+/** The log line of an ended match says who won. */
+function lineKey(line: PickupLogLine): string {
+  if (line.type === 'match_ended') {
+    const winner = line.data.winner;
+    return winner === 'a' || winner === 'b'
+      ? `pickup.log.match_won.${winner}`
+      : 'pickup.log.match_drawn';
+  }
+  if (line.type === 'map_picked' && line.data.map === null) return 'pickup.log.map_random';
+  return `pickup.log.${line.type}`;
+}
 
 function placeKey(side: PickupLogLine['data'][string]): string {
   if (side === 'a' || side === 'b') return `pickup.team.${side}`;
@@ -48,11 +68,14 @@ export function PickupLog({ lines }: { lines: PickupLogLine[] }) {
                 hour: '2-digit',
                 minute: '2-digit',
               })}{' '}
-              {t(`pickup.log.${line.type}`, {
+              {t(lineKey(line), {
                 actor: line.actorName,
                 player: line.playerName ?? line.actorName,
                 place: t(placeKey(line.data.side)),
                 size: line.data.teamSize ?? '',
+                map: line.data.map ?? '',
+                number: line.data.matchNo ?? '',
+                late: line.data.count ?? 0,
               })}
             </Typography>
           ))}

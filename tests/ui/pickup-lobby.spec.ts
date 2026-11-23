@@ -3,26 +3,14 @@ import {
   expect,
   request as playwrightRequest,
   type APIRequestContext,
+  type Page,
 } from '@playwright/test';
-import {
-  allowed,
-  balancedSplit,
-  decide,
-  newLobby,
-  seated,
-  shuffled,
-  waiting,
-  type Actor,
-  type Command,
-  type Lobby,
-  type Outcome,
-  type Side,
-} from '../../api/src/services/pickup/rules';
-import { signInAsPlayer, signInAsPlayerViaRequest } from '../helpers/auth';
+import type { Side } from '../../api/src/services/pickup/rules';
+import { signInAsPlayer, signInAsPlayerViaRequest, signInViaRequest } from '../helpers/auth';
 
 /**
- * Pickup lobby, step 1 (docs/design/pickup-lobby.md): the pure rules, then a
- * lobby end to end with real player sessions: open, sides, the waiting room,
+ * Pickup lobby (docs/design/pickup-lobby.md; the pure rules are in
+ * tests/api/pickup-rules.spec.ts): a lobby end to end with real player sessions: open, sides, the waiting room,
  * the host's controls, the log and close; then the page, with two browsers.
  * One file, one serial run: only one lobby can be open at a time.
  *
@@ -33,192 +21,6 @@ import { signInAsPlayer, signInAsPlayerViaRequest } from '../helpers/auth';
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3069';
 const TAGS = { tag: ['@ui', '@pickup'] };
 
-const HOST: Actor = { playerId: 'host', isAdmin: false };
-const player = (playerId: string): Actor => ({ playerId, isAdmin: false });
-
-/** Apply commands in order; each must be accepted. */
-function run(lobby: Lobby, steps: Array<[Actor, Command, number?]>): Lobby {
-  let current = lobby;
-  let now = 100;
-  for (const [actor, command] of steps) {
-    now += 1;
-    const outcome = decide(current, actor, command, {
-      now,
-      random: () => 0.5,
-      version: current.version,
-    });
-    if (!outcome.ok) throw new Error(`${command.type} refused: ${outcome.code}`);
-    current = outcome.lobby;
-  }
-  return current;
-}
-
-function attempt(lobby: Lobby, actor: Actor, command: Command, version?: number): Outcome {
-  return decide(lobby, actor, command, { now: 500, random: () => 0.5, version });
-}
-
-const codeOf = (outcome: Outcome) => (outcome.ok ? 'ok' : outcome.code);
-const ids = (lobby: Lobby, side: Side) =>
-  seated(lobby, side)
-    .map((p) => p.playerId)
-    .sort();
-
-/** A lobby with `count` players seated, filling Team A first. */
-function filled(count: number): Lobby {
-  const steps: Array<[Actor, Command]> = [];
-  for (let i = 1; i < count; i++) {
-    steps.push([player(`p${i}`), { type: 'join', side: i < 5 ? 'a' : 'b' }]);
-  }
-  return run(newLobby('l', 'host', 100), steps);
-}
-
-test.describe('pickup rules (pure)', () => {
-  test('a new lobby seats its host on Team A at version 1', TAGS, () => {
-    const lobby = newLobby('l', 'host', 100);
-    expect(lobby.version).toBe(1);
-    expect(ids(lobby, 'a')).toEqual(['host']);
-    expect(lobby.state).toBe('gathering');
-  });
-
-  test('joining a side, switching and the waiting room', TAGS, () => {
-    let lobby = run(newLobby('l', 'host', 100), [[player('p1'), { type: 'join', side: 'b' }]]);
-    expect(ids(lobby, 'b')).toEqual(['p1']);
-    expect(lobby.version).toBe(2);
-    lobby = run(lobby, [[player('p1'), { type: 'join', side: null }]]);
-    expect(waiting(lobby).map((p) => p.playerId)).toEqual(['p1']);
-    expect(codeOf(attempt(lobby, player('p1'), { type: 'join', side: null }))).toBe('no_change');
-  });
-
-  test('a full side refuses, and the waiting room is longest wait first', TAGS, () => {
-    let lobby = filled(5);
-    expect(codeOf(attempt(lobby, player('late'), { type: 'join', side: 'a' }))).toBe('side_full');
-    lobby = run(lobby, [
-      [player('w1'), { type: 'join', side: null }],
-      [player('w2'), { type: 'join', side: null }],
-    ]);
-    expect(waiting(lobby).map((p) => p.playerId)).toEqual(['w1', 'w2']);
-  });
-
-  test('locked teams: players cannot seat themselves, the host still moves them', TAGS, () => {
-    let lobby = run(newLobby('l', 'host', 100), [
-      [player('p1'), { type: 'join', side: 'b' }],
-      [HOST, { type: 'lock_teams', locked: true }],
-    ]);
-    expect(codeOf(attempt(lobby, player('p1'), { type: 'join', side: 'a' }))).toBe('teams_locked');
-    expect(codeOf(attempt(lobby, player('new'), { type: 'join', side: 'a' }))).toBe('teams_locked');
-    lobby = run(lobby, [
-      [player('new'), { type: 'join', side: null }],
-      [HOST, { type: 'move', playerId: 'new', side: 'a' }],
-    ]);
-    expect(ids(lobby, 'a')).toEqual(['host', 'new']);
-  });
-
-  test("the host's commands are refused for anyone else, and allowed for an admin", TAGS, () => {
-    const lobby = run(newLobby('l', 'host', 100), [[player('p1'), { type: 'join', side: 'b' }]]);
-    const commands: Command[] = [
-      { type: 'move', playerId: 'host', side: null },
-      { type: 'kick', playerId: 'host' },
-      { type: 'make_host', playerId: 'p1' },
-      { type: 'scramble' },
-      { type: 'balance', ratings: {} },
-      { type: 'lock_teams', locked: true },
-      { type: 'set_settings', teamSize: 2 },
-      { type: 'close' },
-    ];
-    for (const command of commands) {
-      expect(codeOf(attempt(lobby, player('p1'), command, lobby.version))).toBe('not_allowed');
-    }
-    const admin: Actor = { playerId: 'admin', isAdmin: true };
-    expect(codeOf(attempt(lobby, admin, { type: 'close' }, lobby.version))).toBe('ok');
-    expect(allowed(lobby, player('p1')).close).toBe(false);
-    expect(allowed(lobby, HOST).close).toBe(true);
-  });
-
-  test('one-shot commands need the current version', TAGS, () => {
-    const lobby = filled(4);
-    expect(codeOf(attempt(lobby, HOST, { type: 'scramble' }))).toBe('stale');
-    expect(codeOf(attempt(lobby, HOST, { type: 'close' }, lobby.version - 1))).toBe('stale');
-    expect(codeOf(attempt(lobby, HOST, { type: 'close' }, lobby.version))).toBe('ok');
-  });
-
-  test('the host leaving passes the lobby on; the last one leaving closes it', TAGS, () => {
-    let lobby = run(newLobby('l', 'host', 100), [
-      [player('p1'), { type: 'join', side: 'b' }],
-      [player('p2'), { type: 'join', side: null }],
-      [HOST, { type: 'leave' }],
-    ]);
-    expect(lobby.hostId).toBe('p1');
-    lobby = run(lobby, [
-      [player('p1'), { type: 'leave' }],
-      [player('p2'), { type: 'leave' }],
-    ]);
-    expect(lobby.state).toBe('closed');
-    expect(codeOf(attempt(lobby, player('p3'), { type: 'join', side: 'a' }))).toBe('closed');
-  });
-
-  test('kick and make host', TAGS, () => {
-    let lobby = run(newLobby('l', 'host', 100), [[player('p1'), { type: 'join', side: 'b' }]]);
-    expect(codeOf(attempt(lobby, HOST, { type: 'kick', playerId: 'host' }))).toBe('not_allowed');
-    expect(codeOf(attempt(lobby, HOST, { type: 'kick', playerId: 'nobody' }))).toBe('not_in_lobby');
-    lobby = run(lobby, [[HOST, { type: 'make_host', playerId: 'p1' }]]);
-    expect(lobby.hostId).toBe('p1');
-    lobby = run(lobby, [[player('p1'), { type: 'kick', playerId: 'host' }]]);
-    expect(lobby.players.map((p) => p.playerId)).toEqual(['p1']);
-  });
-
-  test('scramble keeps everyone seated, evenly, and leaves the waiting room alone', TAGS, () => {
-    let lobby = run(filled(7), [[player('w'), { type: 'join', side: null }]]);
-    const before = [...ids(lobby, 'a'), ...ids(lobby, 'b')].sort();
-    lobby = run(lobby, [[HOST, { type: 'scramble' }]]);
-    expect([...ids(lobby, 'a'), ...ids(lobby, 'b')].sort()).toEqual(before);
-    expect(ids(lobby, 'a')).toHaveLength(4);
-    expect(ids(lobby, 'b')).toHaveLength(3);
-    expect(waiting(lobby).map((p) => p.playerId)).toEqual(['w']);
-    expect(codeOf(attempt(newLobby('x', 'host', 1), HOST, { type: 'scramble' }, 1))).toBe(
-      'not_enough_players'
-    );
-  });
-
-  test('shuffled is a permutation driven by the randomness given', TAGS, () => {
-    const items = ['a', 'b', 'c', 'd'];
-    expect(shuffled(items, () => 0.999)).toEqual(items);
-    expect([...shuffled(items, () => 0)].sort()).toEqual(items);
-  });
-
-  test('balanced split: the smallest gap in total rating', TAGS, () => {
-    const ratings = { a: 2000, b: 1900, c: 1500, d: 1400, e: 1000, f: 900 };
-    const split = balancedSplit(Object.keys(ratings), ratings, 3);
-    const sum = (list: string[]) =>
-      list.reduce((total, id) => total + ratings[id as keyof typeof ratings], 0);
-    expect(split.a).toHaveLength(3);
-    expect(split.b).toHaveLength(3);
-    expect(Math.abs(sum(split.a) - sum(split.b))).toBe(100);
-  });
-
-  test('balance seats the split and puts the odd player on Team A', TAGS, () => {
-    const lobby = filled(5);
-    const ratings = { host: 3000, p1: 1000, p2: 1000, p3: 1000, p4: 1000 };
-    const outcome = attempt(lobby, HOST, { type: 'balance', ratings }, lobby.version);
-    if (!outcome.ok) throw new Error(outcome.code);
-    expect(ids(outcome.lobby, 'a')).toHaveLength(3);
-    expect(ids(outcome.lobby, 'b')).toHaveLength(2);
-    expect(ids(outcome.lobby, 'b')).toContain('host');
-  });
-
-  test('team size: 1 to 5, never below the players already seated', TAGS, () => {
-    const lobby = filled(5);
-    expect(codeOf(attempt(lobby, HOST, { type: 'set_settings', teamSize: 6 }))).toBe(
-      'invalid_settings'
-    );
-    expect(codeOf(attempt(lobby, HOST, { type: 'set_settings', teamSize: 2 }))).toBe(
-      'team_size_below_seated'
-    );
-    expect(codeOf(attempt(lobby, HOST, { type: 'set_settings', teamSize: 5 }))).toBe('no_change');
-    const small = run(newLobby('l', 'host', 100), [[HOST, { type: 'set_settings', teamSize: 2 }]]);
-    expect(small.settings.teamSize).toBe(2);
-  });
-});
-
 interface LobbyBody {
   lobby: {
     id: string;
@@ -227,12 +29,22 @@ interface LobbyBody {
     hostId: string;
     teamsLocked: boolean;
     settings: { teamSize: number };
-    teams: Record<Side, Array<{ playerId: string; name: string; isHost: boolean }>>;
+    teams: Record<Side, Array<{ playerId: string; name: string; isHost: boolean; ready: boolean }>>;
     waiting: Array<{ playerId: string }>;
-    log: Array<{ type: string }>;
+    log: Array<{ type: string; data: Record<string, string | number | boolean | null> }>;
+    deadline: number | null;
+    pickedMap: string | null;
+    maps: Array<{ id: string }>;
+    match: { slug: string; matchNo: number; status: string; map: string | null } | null;
     me: string | null;
     can: Record<string, boolean>;
   };
+}
+
+/** Save a screenshot when PICKUP_SCREENSHOTS names a folder. */
+async function shot(page: Page, name: string): Promise<void> {
+  const folder = process.env.PICKUP_SCREENSHOTS;
+  if (folder) await page.screenshot({ path: `${folder}/pickup-${name}.png`, fullPage: true });
 }
 
 test.describe.serial('pickup lobby', () => {
@@ -371,8 +183,72 @@ test.describe.serial('pickup lobby', () => {
     const reopened = await contexts[2].post('/api/pickup', { data: {} });
     expect(reopened.ok()).toBe(true);
     lobbyId = ((await reopened.json()) as { id: string }).id;
-    const fresh = await view(2);
-    expect((await send(2, { type: 'close', version: fresh.version })).ok()).toBe(true);
+  });
+
+  test('Start: the ready check, a match on the platform, its result', TAGS, async () => {
+    const admin = await playwrightRequest.newContext({ baseURL: BASE_URL });
+    expect(await signInViaRequest(admin)).toBe(true);
+
+    // A 1v1: player 3 hosts on Team A, player 1 on Team B.
+    expect((await send(2, { type: 'set_settings', teamSize: 1 })).ok()).toBe(true);
+    const early = await send(2, { type: 'start', version: (await view(2)).version });
+    expect(((await early.json()) as { code: string }).code).toBe('teams_not_full');
+    expect((await send(0, { type: 'join', side: 'b' })).ok()).toBe(true);
+    let lobby = await view(2);
+    expect(lobby.maps.length).toBeGreaterThan(0);
+    const map = lobby.maps[0].id;
+    expect((await send(2, { type: 'pick_map', map: 'de_no_such_map' })).status()).toBe(409);
+    expect((await send(2, { type: 'pick_map', map })).ok()).toBe(true);
+
+    lobby = await view(2);
+    expect((await send(2, { type: 'start', version: lobby.version })).ok()).toBe(true);
+    lobby = await view(0);
+    expect(lobby.state).toBe('ready_check');
+    expect(lobby.deadline).not.toBeNull();
+    expect(lobby.teams.a[0].ready).toBe(true);
+    expect(lobby.can.ready).toBe(true);
+
+    expect((await send(0, { type: 'ready' })).ok()).toBe(true);
+    lobby = await view(0);
+    expect(lobby.state).toBe('in_match');
+    const slug = lobby.match?.slug ?? '';
+    expect(slug).toMatch(/^pu-[0-9a-f]{8}-1$/);
+    expect(lobby.match?.map).toBe(map);
+    const match = await admin.get(`/api/matches/${slug}`);
+    expect(match.ok(), await match.text()).toBe(true);
+    const leaving = await send(0, { type: 'leave' });
+    expect(((await leaving.json()) as { code: string }).code).toBe('in_match');
+
+    // Team B wins: the lobby gathers again with the same teams.
+    const end = { slug, result: { winner: 'team2', team1Score: 0, team2Score: 1, games: [] } };
+    expect((await admin.post('/api/test/series-result', { data: end })).ok()).toBe(true);
+    await expect.poll(async () => (await view(2)).state).toBe('gathering');
+    lobby = await view(2);
+    expect(lobby.match).toBeNull();
+    expect(lobby.teams.b.map((p) => p.playerId)).toEqual([steamIds[0]]);
+    const ended = lobby.log.find((line) => line.type === 'match_ended');
+    expect(ended?.data.winner).toBe('b');
+
+    // A second match, cancelled by the host: the platform's match is cancelled too.
+    expect((await send(2, { type: 'start', version: lobby.version })).ok()).toBe(true);
+    expect((await send(0, { type: 'ready' })).ok()).toBe(true);
+    lobby = await view(2);
+    const second = lobby.match?.slug ?? '';
+    expect(second).toMatch(/-2$/);
+    expect((await send(2, { type: 'cancel', version: lobby.version })).ok()).toBe(true);
+    lobby = await view(2);
+    expect(lobby.state).toBe('gathering');
+    await expect
+      .poll(async () => {
+        const row = (await (await admin.get(`/api/matches/${second}`)).json()) as {
+          match?: { status?: string };
+        };
+        return row.match?.status;
+      })
+      .toBe('cancelled');
+
+    expect((await send(2, { type: 'close', version: lobby.version })).ok()).toBe(true);
+    await admin.dispose();
   });
 
   test('the page: open, join from a second browser, scramble, close', TAGS, async ({ browser }) => {
@@ -399,12 +275,23 @@ test.describe.serial('pickup lobby', () => {
 
     await host.getByTestId('pickup-scramble').click();
     await expect(host.getByTestId('pickup-log')).toContainText('scrambled the teams');
-    if (process.env.PICKUP_SCREENSHOTS) {
-      await host.screenshot({
-        path: `${process.env.PICKUP_SCREENSHOTS}/lobby.png`,
-        fullPage: true,
-      });
-    }
+    await shot(host, 'lobby');
+
+    // A 1v1, so the two of them fill both teams: Start, Ready, the match, Cancel.
+    const sized = await host.request.post(`/api/pickup/${lobbyId}/commands`, {
+      data: { type: 'set_settings', teamSize: 1 },
+    });
+    expect(sized.ok()).toBe(true);
+    await host.getByTestId('pickup-start').click();
+    await expect(guest.getByTestId('pickup-ready-check')).toBeVisible();
+    await shot(guest, 'ready-check');
+    await guest.getByTestId('pickup-ready').click();
+    await expect(host.getByTestId('pickup-match')).toContainText('Match 1');
+    await expect(guest.getByTestId('pickup-open-match')).toBeVisible();
+    await shot(host, 'match');
+    await host.getByTestId('pickup-cancel').click();
+    await expect(host.getByTestId('pickup-log')).toContainText('Match 1 was cancelled');
+    await expect(guest.getByTestId('pickup-match')).toHaveCount(0);
 
     await host.getByTestId('pickup-close').click();
     await expect(guest.getByText('This lobby is closed')).toBeVisible();

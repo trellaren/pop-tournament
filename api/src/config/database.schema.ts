@@ -210,7 +210,7 @@ export function getSchemaSQL(): string {
       server_id TEXT,
       config TEXT NOT NULL,
       game TEXT NOT NULL DEFAULT 'cs2', -- Game integration that owns this row (integrations/registry)
-      source TEXT, -- 'matchmaking' for a matchmaking match; NULL = tournament or manual
+      source TEXT, -- 'matchmaking' for a matchmaking match, 'pickup' for a pickup lobby's; NULL = tournament or manual
       status TEXT NOT NULL DEFAULT 'pending',
       -- Optional explicit slot wiring: where the inputs for this match come from.
       -- When populated, runtime progression can be driven entirely by these
@@ -1338,13 +1338,17 @@ export function getSchemaSQL(): string {
       id TEXT PRIMARY KEY,
       game TEXT NOT NULL DEFAULT 'cs2',
       mode TEXT NOT NULL DEFAULT '5v5',
-      state TEXT NOT NULL, -- 'gathering' | 'closed'
+      state TEXT NOT NULL, -- 'gathering' | 'ready_check' | 'in_match' | 'closed'
       host_id TEXT NOT NULL,
       version INTEGER NOT NULL DEFAULT 1, -- goes up by one with every change
       settings TEXT NOT NULL, -- JSON { teamSize }
       teams_locked BOOLEAN NOT NULL DEFAULT FALSE,
       created_at INTEGER NOT NULL,
-      closed_at INTEGER
+      closed_at INTEGER,
+      picked_map TEXT, -- the map the host picked; NULL draws one at Start
+      deadline_at INTEGER, -- when the ready check ends; NULL outside one
+      match_count INTEGER NOT NULL DEFAULT 0, -- matches this lobby has started
+      match_slug TEXT -- the running match; NULL outside one
     );
     CREATE UNIQUE INDEX IF NOT EXISTS idx_pickup_lobbies_open ON pickup_lobbies(game, mode) WHERE state <> 'closed';
 
@@ -1354,9 +1358,23 @@ export function getSchemaSQL(): string {
       side TEXT, -- 'a' | 'b'; NULL in the waiting room
       joined_at INTEGER NOT NULL,
       waiting_since INTEGER, -- NULL while seated
+      ready BOOLEAN NOT NULL DEFAULT FALSE, -- pressed Ready in the running ready check
       PRIMARY KEY (lobby_id, player_id)
     );
     CREATE INDEX IF NOT EXISTS idx_pickup_lobby_players_player ON pickup_lobby_players(player_id);
+
+    -- The matches a lobby started (matches.source = 'pickup').
+    CREATE TABLE IF NOT EXISTS pickup_matches (
+      match_slug TEXT PRIMARY KEY,
+      lobby_id TEXT NOT NULL REFERENCES pickup_lobbies(id) ON DELETE CASCADE,
+      match_no INTEGER NOT NULL,
+      map TEXT,
+      team_a TEXT NOT NULL, -- JSON [player id]
+      team_b TEXT NOT NULL, -- JSON [player id]
+      result TEXT, -- 'a' | 'b' | 'draw' | 'cancelled' | 'failed'; NULL while it runs
+      created_at INTEGER NOT NULL,
+      ended_at INTEGER
+    );
 
     -- The lobby log.
     CREATE TABLE IF NOT EXISTS pickup_events (

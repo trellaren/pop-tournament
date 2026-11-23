@@ -68,6 +68,13 @@ export function PickupTeamPanel({ lobby, side, viewerId, busy, onCommand }: Pick
             {player.name}
           </Typography>
           {player.isHost && <Chip size="small" label={t('pickup.host')} />}
+          {lobby.state === 'ready_check' && side !== null && (
+            <Chip
+              size="small"
+              color={player.ready ? 'success' : 'default'}
+              label={player.ready ? t('pickup.ready.yes') : t('pickup.ready.no')}
+            />
+          )}
           {player.rating !== null && (
             <Typography variant="body2" color="text.secondary">
               {player.rating}

@@ -16,6 +16,10 @@ export type PickupCommandType =
   | 'balance'
   | 'lock_teams'
   | 'set_settings'
+  | 'pick_map'
+  | 'start'
+  | 'ready'
+  | 'cancel'
   | 'close';
 
 export interface PickupPlayer {
@@ -24,6 +28,14 @@ export interface PickupPlayer {
   avatarUrl: string | null;
   rating: number | null;
   isHost: boolean;
+  ready: boolean;
+}
+
+export interface PickupMatch {
+  slug: string;
+  matchNo: number;
+  status: string;
+  map: string | null;
 }
 
 export interface PickupLogLine {
@@ -38,11 +50,15 @@ export interface PickupLogLine {
 
 export interface PickupLobby {
   id: string;
-  state: 'gathering' | 'closed';
+  state: 'gathering' | 'ready_check' | 'in_match' | 'closed';
   version: number;
   hostId: string;
   teamsLocked: boolean;
   settings: { teamSize: number };
+  pickedMap: string | null;
+  maps: Array<{ id: string; name: string }>;
+  deadline: number | null;
+  match: PickupMatch | null;
   teams: Record<Side, PickupPlayer[]>;
   waiting: PickupPlayer[];
   log: PickupLogLine[];
@@ -69,6 +85,10 @@ export type PickupCommand =
   | { type: 'balance'; version: number }
   | { type: 'lock_teams'; locked: boolean }
   | { type: 'set_settings'; teamSize: number }
+  | { type: 'pick_map'; map: string | null }
+  | { type: 'start'; version: number }
+  | { type: 'ready' }
+  | { type: 'cancel'; version: number }
   | { type: 'close'; version: number };
 
 export const PICKUP_TOPIC = 'pickup';
@@ -127,7 +147,8 @@ export function usePickupLobby(lobbyId: string | undefined): PickupLobbyState {
   }, [lobbyId]);
 
   React.useEffect(reload, [reload]);
-  useTopic(PICKUP_TOPIC, reload, { enabled: Boolean(lobbyId) });
+  // The match's own progress (server found, live) arrives as match updates.
+  useTopic(PICKUP_TOPIC, reload, { enabled: Boolean(lobbyId), events: ['match:update'] });
 
   return { lobby, ready, missing, reload };
 }
