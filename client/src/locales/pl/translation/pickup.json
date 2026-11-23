@@ -194,6 +194,18 @@
     "vote": {
       "title": "Vote for the map",
       "progress": "{{voted}} of {{total}} voted · {{seconds}} s left"
+    },
+    "activity": {
+      "starting": "Signing you in through Discord…",
+      "outside": "Open this from Discord",
+      "outsideHint": "This page is the Pickup lobby inside Discord. Start it from the lobby panel's Launch Dashboard button.",
+      "notConfigured": "The Activity is not set up",
+      "notConfiguredHint": "An admin needs to set up Sign in with Discord on the site first.",
+      "notLinked": "Connect Discord on the site first",
+      "notLinkedHint": "No account on the site has this Discord account yet. Sign in on the site, connect Discord there once, then open this again.",
+      "openSite": "Open the site",
+      "failed": "Could not sign you in",
+      "failedHint": "Close this and open it again."
     }
   }
 }

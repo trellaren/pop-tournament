@@ -114,6 +114,7 @@ const Friends = React.lazy(() => import('./pages/Friends'));
 const Notifications = React.lazy(() => import('./pages/Notifications'));
 const Pickup = React.lazy(() => import('./pages/Pickup'));
 const PickupLobby = React.lazy(() => import('./pages/PickupLobby'));
+const PickupActivity = React.lazy(() => import('./pages/PickupActivity'));
 const TeamsDirectory = React.lazy(() => import('./pages/TeamsDirectory'));
 const TeamManage = React.lazy(() => import('./pages/TeamManage'));
 const TournamentPrizes = React.lazy(() => import('./pages/TournamentPrizes'));
@@ -538,6 +539,7 @@ function AppRoutes() {
             </RequireSignedIn>
           }
         />
+        <Route path={paths.pickupActivity} element={<PickupActivity />} />
         <Route
           path={paths.pickupLobby}
           element={

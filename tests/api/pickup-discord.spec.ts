@@ -152,6 +152,17 @@ test.describe('pickup Discord panel (pure)', () => {
     expect(message.components.every((r) => r.components.length <= 5)).toBe(true);
   });
 
+  test('Launch Dashboard only while the Activity is turned on', TAGS, () => {
+    expect(labels(panelMessage(lobby(), SITE))).not.toContain('Launch Dashboard');
+    const message = panelMessage(lobby(), SITE, { activity: true });
+    expect(labels(message)).toContain('Launch Dashboard');
+    const launch = ids(message).find((b) => b.label === 'Launch Dashboard');
+    expect(parseCustomId(launch?.custom_id ?? '')?.action).toBe('launch');
+    expect(commandOf('launch', 7)).toBeNull();
+    expect(message.components.length).toBeLessThanOrEqual(LIMITS.rows);
+    expect(message.components.every((r) => r.components.length <= 5)).toBe(true);
+  });
+
   test('ready check: who is ready, the deadline, Ready and Cancel start', TAGS, () => {
     const message = panelMessage(
       lobby({

@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { Panel } from '../common/ui';
 import { matchDetailsPath } from '../../paths';
 import type { PickupCommand, PickupLobby } from './pickupApi';
+import { usePickupHost } from './pickupHost';
 
 interface PickupStatusProps {
   lobby: PickupLobby;
@@ -36,6 +37,7 @@ function useSecondsLeft(deadline: number | null, onDeadline: () => void): number
 
 export function PickupStatus({ lobby, busy, onCommand, onDeadline }: PickupStatusProps) {
   const { t } = useTranslation();
+  const host = usePickupHost();
   const timed = lobby.state === 'ready_check' || lobby.state === 'map_vote';
   const left = useSecondsLeft(timed ? lobby.deadline : null, onDeadline);
 
@@ -118,9 +120,10 @@ export function PickupStatus({ lobby, busy, onCommand, onDeadline }: PickupStatu
           </Box>
           <Button
             variant="contained"
-            component={RouterLink}
-            to={matchDetailsPath(match.slug)}
             data-testid="pickup-open-match"
+            {...(host.openOutside
+              ? { onClick: () => host.openOutside?.(matchDetailsPath(match.slug)) }
+              : { component: RouterLink, to: matchDetailsPath(match.slug) })}
           >
             {lobby.me === 'a' || lobby.me === 'b'
               ? t('pickup.match.openPlayer')

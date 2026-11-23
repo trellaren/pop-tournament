@@ -46,6 +46,7 @@ export type PanelAction =
   | 'draft'
   | 'pick'
   | 'vote'
+  | 'launch'
   | 'cancel';
 
 const ACTIONS: readonly PanelAction[] = [
@@ -62,6 +63,7 @@ const ACTIONS: readonly PanelAction[] = [
   'draft',
   'pick',
   'vote',
+  'launch',
   'cancel',
 ];
 
@@ -97,6 +99,8 @@ export function commandOf(
       return { command: { type: 'start_draft', method: 'random' }, version };
     case 'pick':
       return value ? { command: { type: 'pick', playerId: value } } : null;
+    case 'launch':
+      return null;
     case 'vote':
       return value ? { command: { type: 'vote_map', map: value } } : null;
     case 'join_a':
@@ -200,7 +204,7 @@ function button(
   };
 }
 
-function rowsOf(lobby: LobbyView, siteUrl: string): Row[] {
+function rowsOf(lobby: LobbyView, siteUrl: string, activity: boolean): Row[] {
   if (lobby.state === 'closed') return [];
   const size = lobby.settings.teamSize;
   const full = (side: 'a' | 'b') => lobby.teams[side].length >= size;
@@ -208,6 +212,8 @@ function rowsOf(lobby: LobbyView, siteUrl: string): Row[] {
   const links: Button[] = [
     { type: 2, style: 5, label: 'Open lobby', url: `${siteUrl}/pickup/${lobby.id}` },
   ];
+  // The lobby inside Discord (the Activity), for servers that have it set up.
+  if (activity) links.push(button(lobby, 'launch', 'Launch Dashboard', 2));
   if (lobby.state === 'gathering') {
     return [
       {
@@ -325,7 +331,11 @@ function rowsOf(lobby: LobbyView, siteUrl: string): Row[] {
 }
 
 /** The whole panel message for a lobby. The host's buttons are for the host: a press is checked. */
-export function panelMessage(lobby: LobbyView, siteUrl: string): PanelMessage {
+export function panelMessage(
+  lobby: LobbyView,
+  siteUrl: string,
+  options: { activity?: boolean } = {}
+): PanelMessage {
   const size = lobby.settings.teamSize;
   const host = [...lobby.teams.a, ...lobby.teams.b, ...lobby.waiting].find((p) => p.isHost);
   const closed = lobby.state === 'closed';
@@ -359,7 +369,7 @@ export function panelMessage(lobby: LobbyView, siteUrl: string): PanelMessage {
             ],
       },
     ],
-    components: rowsOf(lobby, siteUrl),
+    components: rowsOf(lobby, siteUrl, options.activity === true),
     allowed_mentions: { parse: [] },
   };
 }

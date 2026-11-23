@@ -17,7 +17,12 @@ import { botToken, pickedGuildId } from './bot';
 import { discordFetch } from './rest';
 import { verifyDiscordSignature } from './interactionVerify';
 import { callToLobby, LobbyCallError } from './lobbyCall';
-import { PICKUP_COMMAND, pickupCommandAnswer, pickupComponentAnswer } from './pickup/interact';
+import {
+  LAUNCH_ACTIVITY,
+  PICKUP_COMMAND,
+  pickupCommandAnswer,
+  pickupComponentAnswer,
+} from './pickup/interact';
 
 const ADMINISTRATOR = 1n << 3n;
 const MOVE_MEMBERS = 1n << 24n;
@@ -185,7 +190,9 @@ async function commandAnswer(interaction: Record<string, Untrusted>): Promise<st
 }
 
 /** 6: acknowledge a button with nothing said; 4: answer the presser alone. */
-function componentReply(text: string | null) {
+function componentReply(text: string | null | typeof LAUNCH_ACTIVITY) {
+  // 12: open the app's Activity for whoever pressed.
+  if (text === LAUNCH_ACTIVITY) return { type: 12 };
   if (text === null) return { type: 6 };
   return {
     type: 4,

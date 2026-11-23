@@ -54,6 +54,16 @@ function tournamentScope(): number | null {
 /** Fired when the API answers `license_expired` (api/src/middleware/licenseExpired.ts); components/license/LicenseGate.tsx shows the page. */
 export const LICENSE_EXPIRED_EVENT = 'at:license-expired';
 
+/**
+ * A bearer token sent with every request, for a page that cannot use the
+ * site's cookie (the pickup Activity inside Discord's frame). Null: the cookie.
+ */
+let bearerToken: string | null = null;
+
+export function setApiBearer(token: string | null): void {
+  bearerToken = token;
+}
+
 /** GETs on their way, by scope and URL (api.get). */
 const inFlight = new Map<string, Promise<Untrusted>>();
 
@@ -76,6 +86,7 @@ export const api = {
       ...rest,
       headers: {
         'Content-Type': 'application/json',
+        ...(bearerToken ? { Authorization: `Bearer ${bearerToken}` } : {}),
         ...(tournamentScope() ? { 'X-Tournament-Id': String(tournamentScope()) } : {}),
         ...(headers || {}),
       },

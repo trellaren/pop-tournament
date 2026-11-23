@@ -13969,6 +13969,55 @@
         }
       }
     },
+    "/api/pickup/activity/config": {
+      "get": {
+        "tags": [
+          "Pickup"
+        ],
+        "summary": "What the Discord Activity needs to start",
+        "description": "The Discord application's id the Activity authorizes against, or\nnull while \"Sign in with Discord\" is not set up. No secret.\n",
+        "responses": {
+          "200": {
+            "description": "The Activity's configuration"
+          }
+        }
+      }
+    },
+    "/api/pickup/activity/token": {
+      "post": {
+        "tags": [
+          "Pickup"
+        ],
+        "summary": "Sign in to the Discord Activity",
+        "description": "Exchanges the code from Discord's Embedded App SDK for a one-hour\ntoken of the platform account that has that Discord account\nconnected. The token is sent as `Authorization: Bearer` to the\npickup routes. 409 `not_linked` when no account has it; 503\n`not_configured` while Discord sign-in is not set up.\n",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "code"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The token"
+          },
+          "409": {
+            "description": "No platform account has this Discord account"
+          }
+        }
+      }
+    },
     "/api/pickup/{id}": {
       "get": {
         "tags": [
