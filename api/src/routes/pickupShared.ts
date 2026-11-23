@@ -11,6 +11,7 @@ import { PickupError } from '../services/pickup/pickupService';
 import type { Actor } from '../services/pickup/rules';
 import { bearerOf } from '../services/pickup/activityToken';
 import { actorOfActivityToken } from '../services/pickup/activitySignIn';
+import { actorFor } from '../services/pickup/moderation';
 
 type PickupRequest = Request & { pickupActor?: Actor; pickupBearer?: boolean };
 
@@ -46,10 +47,7 @@ export async function requirePlayer(
     res.status(403).json({ success: false, error: 'Stop impersonating to use pickup lobbies' });
     return;
   }
-  (req as PickupRequest).pickupActor = {
-    playerId: identity.realSteamId,
-    isAdmin: identity.isRealAdmin,
-  };
+  (req as PickupRequest).pickupActor = await actorFor(identity.realSteamId, identity.isRealAdmin);
   next();
 }
 
@@ -88,7 +86,7 @@ export function handle(
       if (error instanceof PickupError) {
         return res
           .status(error.status)
-          .json({ success: false, code: error.code, error: error.message });
+          .json({ success: false, code: error.code, error: error.message, ...error.data });
       }
       log.error(`[PICKUP] ${what} failed`, error as Error);
       return res.status(500).json({ success: false, error: `Could not ${what}` });

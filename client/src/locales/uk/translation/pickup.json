@@ -41,7 +41,8 @@
       },
       "makeHost": "Make host",
       "kick": "Kick",
-      "rollOut": "Roll out"
+      "rollOut": "Roll out",
+      "ban": "Ban"
     },
     "settings": {
       "title": "Match settings",
@@ -190,7 +191,10 @@
       "already_subbed_out": "That player already left this match and cannot come back into it.",
       "may_not_spectate": "Only someone in the lobby who is not playing can spectate.",
       "spectate_refused": "The match server did not take that. Try again in a moment.",
-      "unknown": "That did not work. Try again."
+      "unknown": "That did not work. Try again.",
+      "banned": "You are banned from pickup lobbies.",
+      "bannedUntil": "You are banned from pickup lobbies until {{when}}.",
+      "banned_player": "That player is banned from pickup lobbies."
     },
     "ready": {
       "title": "Ready check",
@@ -278,6 +282,22 @@
         "practice": "Practice",
         "retakes": "Retakes"
       }
+    },
+    "ban": {
+      "title": "Ban {{player}} from pickup",
+      "hint": "They leave the lobby and cannot open or join one until the ban ends. They are told until when, never why.",
+      "length": "For how long",
+      "lengths": {
+        "0": "Until lifted",
+        "3600": "1 hour",
+        "86400": "1 day",
+        "604800": "7 days",
+        "2592000": "30 days"
+      },
+      "reason": "Reason",
+      "reasonHint": "Only moderators see this.",
+      "cancel": "Cancel",
+      "confirm": "Ban"
     }
   }
 }

@@ -225,6 +225,16 @@ export class ModerationError extends Error {
   }
 }
 
+/** Out of the pickup lobby and its lists (services/pickup); a failure never stops the ban or delete. */
+async function leavePickup(playerId: string, keepSettings: boolean): Promise<void> {
+  try {
+    const { forgetPickupPlayer } = await import('./pickup/moderationService');
+    await forgetPickupPlayer(playerId, keepSettings);
+  } catch (error) {
+    log.debug('[MODERATION] pickup clean-up skipped', { error: String(error) });
+  }
+}
+
 export async function banPlayer(playerId: string, reason: string | null, by: Actor): Promise<void> {
   const player = await playerService.getPlayerById(playerId);
   if (!player) throw new ModerationError(404, 'No such player');
@@ -241,6 +251,7 @@ export async function banPlayer(playerId: string, reason: string | null, by: Act
     .runAsync('DELETE FROM mm_party_members WHERE player_id = ?', [playerId])
     .catch(() => undefined);
   await leaveLineups(playerId, 'banned', by);
+  await leavePickup(playerId, true);
   log.warn('[AUDIT] Player banned', { playerId, by: by.userId, reason });
 }
 
@@ -299,6 +310,7 @@ export async function deletePlayer(playerId: string, by: Actor): Promise<boolean
   if (!row) return false;
   if (row.deleted_at != null) return true;
   await leaveLineups(playerId, 'deleted', by);
+  await leavePickup(playerId, false);
   for (const [sql, params] of WIPE) {
     await db.runAsync(sql, params(playerId, row.uid)).catch((error: unknown) => {
       log.debug('[MODERATION] wipe step skipped', { sql, error: String(error) });

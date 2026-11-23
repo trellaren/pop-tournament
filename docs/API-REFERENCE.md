@@ -11,7 +11,7 @@
 
 # API reference
 
-Every endpoint this API serves — 785 of them, 489 behind auth —
+Every endpoint this API serves — 790 of them, 489 behind auth —
 read directly from the routers rather than written down, so it cannot drift.
 
 For *how* to authenticate a bot or script, and a task-oriented tour of the
@@ -1281,6 +1281,18 @@ Parties, the queue, matches and the matchmaking leaderboard (docs/design/matchma
 | `GET` | `/api/matchmaking/admin/queue` | admin |
 | `GET` | `/api/matchmaking/admin/commends/review` | admin |
 | `DELETE` | `/api/matchmaking/admin/players/:id/cooldown` | admin |
+
+### Pickup: moderation
+
+Bans from pickup lobbies for moderators and admins; pickup moderators, balance multipliers and display names for site admins (docs/design/pickup-lobby.md). Writes must be same-site JSON.
+
+| Method | Path | Auth |
+| --- | --- | --- |
+| `GET` | `/api/pickup/admin` | public |
+| `PUT` | `/api/pickup/admin/bans/:playerId` | public |
+| `DELETE` | `/api/pickup/admin/bans/:playerId` | public |
+| `PUT` | `/api/pickup/admin/moderators/:playerId` | public |
+| `PUT` | `/api/pickup/admin/players/:playerId` | public |
 
 ### Pickup: around the lobby
 

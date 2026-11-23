@@ -8,6 +8,7 @@ import type { EventData, Lobby, LobbyEvent, LobbyPlayer, LobbyState, Side } from
 import type { Untrusted } from '../../utils/untrusted';
 import { mapFromMatch } from '../matchmaking/mapFromMatch';
 import { parseDraft, parseSettings, parseVotes, parseSubstitution } from './pickupParse';
+import { displayNamesOf } from './moderation';
 import { invitesOf, writeInvites } from './pickupInvites';
 
 export const PICKUP_GAME = 'cs2';
@@ -287,8 +288,12 @@ export async function loadNames(playerIds: readonly string[]): Promise<Map<strin
     'SELECT id, name, avatar_url FROM players WHERE id = ANY(?::text[])',
     [ids]
   );
-  for (const row of rows)
-    out.set(row.id, { id: row.id, name: row.name, avatarUrl: row.avatar_url });
+  // Where an admin set display names for a player, one of them stands in for their own.
+  const shown = await displayNamesOf(ids, Math.floor(Date.now() / 1000));
+  for (const row of rows) {
+    const name = shown.get(row.id) ?? row.name;
+    out.set(row.id, { id: row.id, name, avatarUrl: row.avatar_url });
+  }
   return out;
 }
 

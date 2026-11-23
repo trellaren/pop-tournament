@@ -26,6 +26,7 @@ export interface LobbyBody {
     >;
     waiting: Array<{ playerId: string }>;
     invited: Array<{ playerId: string; name: string; inLobby: boolean }>;
+    mayBan: boolean;
     maySpectate: boolean;
     substitutes: string[];
     leavers: Array<{ playerId: string; name: string }>;

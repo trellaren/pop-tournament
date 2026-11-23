@@ -2,6 +2,8 @@
  * The pickup lobby as the pages see it: names, ratings, the match's status and
  * the log, for one viewer.
  */
+import { multipliersOf } from './moderation';
+import { weighted } from './moderationRules';
 import { maySpectate } from './spectators';
 import { getGameRatings } from '../gameRatings';
 import {
@@ -106,6 +108,8 @@ export interface LobbyView {
   } | null;
   teams: Record<Side, PlayerView[]>;
   waiting: PlayerView[];
+  /** Whether the viewer may ban someone from pickup: a moderator or an admin. */
+  mayBan: boolean;
   /** Whether the viewer may watch the running match from inside its server. */
   maySpectate: boolean;
   /** Who may come in for a seated player, longest wait first; empty outside a match. */
@@ -147,6 +151,19 @@ export async function ratingsOf(playerIds: string[]): Promise<Record<string, num
   const out: Record<string, number> = {};
   for (const [id, rating] of ratings) out[id] = rating.elo;
   return out;
+}
+
+/**
+ * Ratings as Balance teams and the draft by rating weigh them: each times the
+ * multiplier an admin set for its player. Never shown: the rows carry the
+ * platform's own rating.
+ */
+export async function balanceRatingsOf(playerIds: string[]): Promise<Record<string, number>> {
+  const [ratings, multipliers] = await Promise.all([
+    ratingsOf(playerIds),
+    multipliersOf(playerIds),
+  ]);
+  return weighted(ratings, multipliers);
 }
 
 function playerView(
@@ -216,6 +233,7 @@ export async function buildView(lobby: Lobby, viewer: Actor): Promise<LobbyView>
       b: seated(lobby, 'b').sort(bySeat).map(row),
     },
     waiting: waiting(lobby).map(row),
+    mayBan: viewer.isAdmin,
     maySpectate: maySpectate(lobby, viewer),
     substitutes: substitutes(lobby).map((p) => p.playerId),
     leavers: lobby.leavers.map((playerId) => ({ playerId, name: nameOf(playerId) })),

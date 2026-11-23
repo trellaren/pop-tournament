@@ -322,7 +322,15 @@ Each is its own pull request into `pop`, stacked in this order.
     server, chosen by an admin on the Servers page; the Pickup page and
     `/pickup servers` list the servers that are online with one of them and
     take no matches, for anyone signed in to join.
-12. **Moderation and roles.** What the table below marks "build".
+12. **Moderation and roles.** What the table below marks "build". As built: pickup
+    moderators (`pickup_moderators`, made by a site admin), who run any lobby and ban from
+    pickup; bans from pickup (`pickup_bans`) lasting an hour to thirty days or until lifted,
+    with a reason only moderators read, the banned player told until when and never why; the
+    balance multiplier (0.1 to 1) and display names per player (`pickup_player_settings`),
+    set and seen by site admins only. A platform ban or a deleted account takes the player
+    out of the open lobby. `GET /api/pickup/admin` and its writes, Ban on a lobby row,
+    `/pickup ban` and `/pickup unban`. Not built: a host's value beside the multiplier;
+    reports, the audit log and deleting an account stay the platform's own.
 13. **Admin settings and docs.** Settings → Pickup, the user guide page.
 
 Steps 1 to 4 give the evening as it runs today: the lobby from Discord and

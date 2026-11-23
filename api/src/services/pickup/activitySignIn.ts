@@ -8,6 +8,7 @@
  * must be the application the bot and the Activity belong to.
  */
 import { db } from '../../config/database';
+import { actorFor } from './moderation';
 import { sessionSecret } from '../../config/sessionSecret';
 import { effectiveProviderSettings } from '../../config/signInProviders';
 import { log } from '../../utils/logger';
@@ -45,7 +46,7 @@ export async function actorOfDiscord(discordUserId: string): Promise<Actor | nul
       ) AND p.deleted_at IS NULL AND p.banned_at IS NULL`,
     [discordUserId, discordUserId]
   );
-  return row?.id ? { playerId: row.id, isAdmin: Number(row.is_admin) === 1 } : null;
+  return row?.id ? actorFor(row.id, Number(row.is_admin) === 1) : null;
 }
 
 /** The player a request's Activity token names, read again so a ban or a lost admin right holds. */
@@ -59,7 +60,7 @@ export async function actorOfActivityToken(
     'SELECT id, is_admin FROM players WHERE id = ? AND deleted_at IS NULL AND banned_at IS NULL',
     [playerId]
   );
-  return row ? { playerId: row.id, isAdmin: Number(row.is_admin) === 1 } : null;
+  return row ? actorFor(row.id, Number(row.is_admin) === 1) : null;
 }
 
 export async function signInToActivity(code: string, nowSeconds: number): Promise<ActivitySignIn> {

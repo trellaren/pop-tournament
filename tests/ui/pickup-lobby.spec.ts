@@ -10,6 +10,7 @@ import { BASE_URL, TAGS, type LobbyBody, type PickupFixture } from './pickup/fix
 import { invitesTests } from './pickup/invites';
 import { substitutionTests } from './pickup/substitution';
 import { spectatorsTests } from './pickup/spectators';
+import { moderationTests } from './pickup/moderation';
 import { wingmanTests } from './pickup/wingman';
 
 /**
@@ -370,6 +371,7 @@ test.describe.serial('pickup lobby', () => {
   invitesTests(fixture);
   substitutionTests(fixture);
   spectatorsTests(fixture);
+  moderationTests(fixture);
 
   test('the page: open, join from a second browser, scramble, close', TAGS, async ({ browser }) => {
     const hostContext = await browser.newContext({ baseURL: BASE_URL });
