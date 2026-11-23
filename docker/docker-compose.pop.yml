@@ -1,0 +1,15 @@
+# Run this fork's own image in place of the published one (docs/PICKUP-DEPLOY.md).
+# Used on top of the production compose file, after scripts/pop-build-image.sh:
+#
+#   docker compose --env-file .env -f docker/docker-compose.yml -f docker/docker-compose.pop.yml up -d
+#
+# pop-image.env is written by the build script: the key the image's CS2
+# module is signed with. If .env sets MODULE_TRUSTED_KEYS itself, remove it
+# there, or add this build's key to it.
+
+services:
+  auto-tournament:
+    image: pop-tournament:current
+    env_file:
+      - ../.env
+      - pop-image.env

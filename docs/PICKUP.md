@@ -4,7 +4,8 @@ A pickup lobby is for a group that picks its own teams: open a lobby, sit on
 Team A or Team B, and play on one of the site's servers. When more people
 want to play than there are seats, the rest wait in the waiting room and are
 rotated in after each match (roll-out). The design, and what is not built,
-is in [design/pickup-lobby.md](design/pickup-lobby.md).
+is in [design/pickup-lobby.md](design/pickup-lobby.md). Putting it on a
+machine: [PICKUP-DEPLOY.md](PICKUP-DEPLOY.md).
 
 Nothing here has been tried against Discord or a real game server yet; the
 pull request of each step says what was checked and how.
