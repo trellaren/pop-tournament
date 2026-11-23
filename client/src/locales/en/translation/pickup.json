@@ -45,6 +45,11 @@
     },
     "settings": {
       "title": "Match settings",
+      "format": "Format",
+      "formatName": {
+        "classic": "Classic",
+        "wingman": "Wingman"
+      },
       "teamSize": "Team size",
       "versus": "{{size}}v{{size}}",
       "map": "Map",
@@ -104,6 +109,8 @@
       "teams_locked": "{{actor}} locked the teams.",
       "teams_unlocked": "{{actor}} unlocked the teams.",
       "settings_changed": "{{actor}} set the team size to {{size}}.",
+      "format_classic": "{{actor}} set the format to Classic.",
+      "format_wingman": "{{actor}} set the format to Wingman.",
       "closed": "The lobby was closed.",
       "map_picked": "{{actor}} picked {{map}}.",
       "map_random": "{{actor}} set the map to random.",

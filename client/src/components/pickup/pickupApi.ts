@@ -61,6 +61,8 @@ export interface PickupLogLine {
   data: Record<string, string | number | boolean | null>;
 }
 
+export type PickupFormat = 'classic' | 'wingman';
+
 export interface PickupLobby {
   id: string;
   state: 'gathering' | 'drafting' | 'ready_check' | 'map_vote' | 'in_match' | 'closed';
@@ -68,6 +70,7 @@ export interface PickupLobby {
   hostId: string;
   teamsLocked: boolean;
   settings: {
+    format: PickupFormat;
     teamSize: number;
     rollOut: PickupRollOut;
     mapMethod: PickupMapMethod;
@@ -95,6 +98,7 @@ export interface PickupLobby {
 export interface PickupSummary {
   id: string;
   hostName: string;
+  format: PickupFormat;
   teamSize: number;
   teamsLocked: boolean;
   seated: number;
@@ -112,6 +116,7 @@ export type PickupCommand =
   | { type: 'lock_teams'; locked: boolean }
   | {
       type: 'set_settings';
+      format?: PickupFormat;
       teamSize?: number;
       rollOut?: PickupRollOut;
       mapMethod?: PickupMapMethod;

@@ -146,11 +146,11 @@ export class PickupService {
       const lobby = await this.current(lobbyId);
       if (!lobby) throw refusal('not_found');
       if (input.type === 'pick_map' && input.map !== null) {
-        const pool = await mapPoolFor(lobby.settings.teamSize, lobby.settings.poolId);
+        const pool = await mapPoolFor(lobby.settings.format, lobby.settings.poolId);
         if (!pool.some((m) => m.id === input.map)) throw refusal('invalid_map');
       }
       if (input.type === 'vote_map') {
-        const pool = await mapPoolFor(lobby.settings.teamSize, lobby.settings.poolId);
+        const pool = await mapPoolFor(lobby.settings.format, lobby.settings.poolId);
         if (!pool.some((m) => m.id === input.map)) throw refusal('invalid_map');
       }
       if (input.type === 'set_settings' && typeof input.poolId === 'number') {

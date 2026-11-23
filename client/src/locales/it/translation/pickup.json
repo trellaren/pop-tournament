@@ -68,7 +68,12 @@
       },
       "pool": "Map pool",
       "defaultPool": "Default pool",
-      "poolName": "{{name}} ({{count}})"
+      "poolName": "{{name}} ({{count}})",
+      "format": "Format",
+      "formatName": {
+        "classic": "Classic",
+        "wingman": "Wingman"
+      }
     },
     "controls": {
       "scramble": "Scramble",
@@ -136,7 +141,9 @@
       "map_pool": "{{actor}} changed the map pool.",
       "map_vote": "Everyone is ready. Vote for the map.",
       "map_voted": "The vote chose {{map}}.",
-      "map_voted_none": "Nobody voted: the map is drawn."
+      "map_voted_none": "Nobody voted: the map is drawn.",
+      "format_classic": "{{actor}} set the format to Classic.",
+      "format_wingman": "{{actor}} set the format to Wingman."
     },
     "refusal": {
       "closed": "This lobby is closed.",

@@ -283,7 +283,12 @@ Each is its own pull request into `pop`, stacked in this order.
    with its timer; the lobby's map vote; named pools and Workshop maps.
 7. **The Activity.** `/activity`, its sign-in, the bearer token, Launch
    Dashboard.
-8. **Wingman.**
+8. **Wingman.** The lobby setting Format, Classic or Wingman. Wingman is
+   1v1 or 2v2 and plays as the platform's 2v2 mode (its wingman maps, MR8,
+   `wingman` on the match); Classic plays as its 5v5 mode whatever the team
+   size. Choosing a format brings its team size (2, a 1v1 stays; 5 for
+   Classic) and its default maps unless the same change names them, and
+   forgets a picked map.
 9. **Who can join.** Invited only, invites and invite links.
 10. **Mid-match substitution**, through the platform's roster update.
 11. **Spectators, practice and retakes**, through the platform's servers.

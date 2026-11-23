@@ -84,6 +84,7 @@ export default function Pickup() {
                 {t('pickup.lobbyOf', { host: lobby.hostName })}
               </Typography>
               <Typography variant="body2" color="text.secondary">
+                {lobby.format === 'wingman' && `${t('pickup.settings.formatName.wingman')} · `}
                 {t('pickup.summary', {
                   seated: lobby.seated,
                   seats: lobby.teamSize * 2,

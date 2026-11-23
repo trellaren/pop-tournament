@@ -323,13 +323,15 @@ test.describe('pickup rules: start and the match (pure)', () => {
     expect(codeOf(again)).toBe('stale');
   });
 
-  test('picking a map, and a new team size forgets it', TAGS, () => {
+  test('picking a map, and a new format forgets it', TAGS, () => {
     let lobby = run(newLobby('l', 'host', 100), [[HOST, { type: 'pick_map', map: 'de_dust2' }]]);
     expect(lobby.pickedMap).toBe('de_dust2');
     expect(codeOf(attempt(lobby, player('p1'), { type: 'pick_map', map: null }))).toBe(
       'not_allowed'
     );
     lobby = run(lobby, [[HOST, { type: 'set_settings', teamSize: 2 }]]);
+    expect(lobby.pickedMap).toBe('de_dust2');
+    lobby = run(lobby, [[HOST, { type: 'set_settings', format: 'wingman' }]]);
     expect(lobby.pickedMap).toBeNull();
   });
 });
