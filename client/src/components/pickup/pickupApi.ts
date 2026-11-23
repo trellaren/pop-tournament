@@ -100,6 +100,8 @@ export interface PickupLobby {
   draft: { captains: Record<Side, string>; turn: Side | null; pool: PickupPlayer[] } | null;
   teams: Record<Side, PickupPlayer[]>;
   waiting: PickupPlayer[];
+  /** Whether the viewer may ban someone from pickup: a moderator or an admin. */
+  mayBan: boolean;
   /** Whether the viewer may watch the running match from inside its server. */
   maySpectate: boolean;
   /** Who may come in for a seated player during the match, longest wait first. */
@@ -195,6 +197,26 @@ export function signInToPickupActivity(code: string): Promise<PickupActivitySign
 
 export async function sendPickupCommand(lobbyId: string, command: PickupCommand): Promise<void> {
   await api.post(`/api/pickup/${encodeURIComponent(lobbyId)}/commands`, command);
+}
+
+/** Ban a player from pickup lobbies: `length` in seconds, or null until lifted. */
+export async function banFromPickup(
+  playerId: string,
+  length: number | null,
+  reason: string
+): Promise<void> {
+  await api.put(`/api/pickup/admin/bans/${encodeURIComponent(playerId)}`, { length, reason });
+}
+
+/** When the ban named in a refused call ends (epoch seconds), null until lifted or not a ban. */
+export function pickupBanUntil(error: Untrusted): number | null {
+  if (!(error instanceof Error)) return null;
+  try {
+    const parsed = JSON.parse(error.message) as { until?: Untrusted };
+    return typeof parsed.until === 'number' ? parsed.until : null;
+  } catch {
+    return null;
+  }
 }
 
 /** How to join a server: its address, an IP for the steam:// link, and its password if any. */

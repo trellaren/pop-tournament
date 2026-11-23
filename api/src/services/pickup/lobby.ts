@@ -125,7 +125,10 @@ export interface Lobby {
 
 export interface Actor {
   playerId: string;
+  /** May run any lobby: a site admin or a pickup moderator. */
   isAdmin: boolean;
+  /** A site admin: sets moderators, balance multipliers and display names. */
+  siteAdmin?: boolean;
 }
 
 export type Command =

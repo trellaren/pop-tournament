@@ -86,6 +86,7 @@ function lobby(change: Partial<LobbyView> = {}): LobbyView {
     },
     waiting: [row('4', 'Di')],
     invited: [],
+    mayBan: false,
     maySpectate: false,
     substitutes: [],
     leavers: [],

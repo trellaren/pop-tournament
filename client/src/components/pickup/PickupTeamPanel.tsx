@@ -14,6 +14,8 @@ interface PickupTeamPanelProps {
   viewerId: string | null;
   busy: boolean;
   onCommand: (command: PickupCommand) => void;
+  /** Open the ban dialog for this player; shown to moderators and admins. */
+  onBan?: (player: PickupPlayer) => void;
 }
 
 const OTHER: Record<Side, Side> = { a: 'b', b: 'a' };
@@ -24,7 +26,14 @@ function averageRating(players: PickupPlayer[]): number | null {
   return Math.round(rated.reduce((sum, r) => sum + r, 0) / rated.length);
 }
 
-export function PickupTeamPanel({ lobby, side, viewerId, busy, onCommand }: PickupTeamPanelProps) {
+export function PickupTeamPanel({
+  lobby,
+  side,
+  viewerId,
+  busy,
+  onCommand,
+  onBan,
+}: PickupTeamPanelProps) {
   const { t } = useTranslation();
   const host = usePickupHost();
   const players = side === null ? lobby.waiting : lobby.teams[side];
@@ -157,6 +166,17 @@ export function PickupTeamPanel({ lobby, side, viewerId, busy, onCommand }: Pick
               onClick={() => onCommand({ type: 'kick', playerId: player.playerId })}
             >
               {t('pickup.row.kick')}
+            </Button>
+          )}
+          {lobby.mayBan && player.playerId !== viewerId && (
+            <Button
+              size="small"
+              color="error"
+              disabled={busy}
+              data-testid={`pickup-ban-${player.playerId}`}
+              onClick={() => onBan?.(player)}
+            >
+              {t('pickup.row.ban')}
             </Button>
           )}
         </Box>

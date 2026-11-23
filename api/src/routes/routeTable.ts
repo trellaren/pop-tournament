@@ -66,6 +66,7 @@ import experimentalRoutes from './experimental';
 import matchmakingRoutes from './matchmaking';
 import pickupRoutes from './pickup';
 import pickupExtraRoutes from './pickupExtras';
+import pickupAdminRoutes from './pickupAdmin';
 import leaderboardRoutes from './leaderboard';
 import socialRoutes from './social';
 import addonRoutes from './addons';
@@ -376,6 +377,13 @@ const coreRoutes: MountedRouter[] = [
     title: 'Matchmaking',
     description:
       'Parties, the queue, matches and the matchmaking leaderboard (docs/design/matchmaking.md). On by default for signed-in players; an admin can limit it to admins.',
+  },
+  {
+    prefix: '/api/pickup/admin',
+    router: pickupAdminRoutes,
+    title: 'Pickup: moderation',
+    description:
+      'Bans from pickup lobbies for moderators and admins; pickup moderators, balance multipliers and display names for site admins (docs/design/pickup-lobby.md). Writes must be same-site JSON.',
   },
   // Before the lobby's own routes, so `/servers` and `/activity/...` are not read as a lobby's id.
   {

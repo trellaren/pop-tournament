@@ -1376,6 +1376,31 @@ export function getSchemaSQL(): string {
       PRIMARY KEY (lobby_id, player_id)
     );
 
+    -- Players who may run any pickup lobby and ban from pickup without being site admins.
+    CREATE TABLE IF NOT EXISTS pickup_moderators (
+      player_id TEXT PRIMARY KEY REFERENCES players(id) ON DELETE CASCADE,
+      added_by TEXT NOT NULL,
+      added_at INTEGER NOT NULL
+    );
+
+    -- A ban from pickup lobbies only (a site ban is players.banned_at).
+    CREATE TABLE IF NOT EXISTS pickup_bans (
+      player_id TEXT PRIMARY KEY REFERENCES players(id) ON DELETE CASCADE,
+      until_at INTEGER, -- when it ends; NULL = until lifted
+      reason TEXT, -- for moderators only: never shown to the player, never logged
+      banned_by TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+
+    -- What an admin set for one player in pickup lobbies.
+    CREATE TABLE IF NOT EXISTS pickup_player_settings (
+      player_id TEXT PRIMARY KEY REFERENCES players(id) ON DELETE CASCADE,
+      multiplier REAL, -- balance weight below 1; admins only, shown to nobody else; NULL = 1
+      display_names TEXT, -- JSON [name]: shown in place of the player's own name in pickup lobbies; NULL = none
+      updated_by TEXT NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
     -- The matches a lobby started (matches.source = 'pickup').
     CREATE TABLE IF NOT EXISTS pickup_matches (
       match_slug TEXT PRIMARY KEY,

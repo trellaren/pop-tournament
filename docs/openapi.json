@@ -736,6 +736,10 @@
       "description": "The Discord Activity's sign-in, invite links, Spectate, and the practice and retakes servers (docs/design/pickup-lobby.md). For signed-in players, but for the Activity's sign-in itself."
     },
     {
+      "name": "Pickup: moderation",
+      "description": "Bans from pickup lobbies for moderators and admins; pickup moderators, balance multipliers and display names for site admins (docs/design/pickup-lobby.md). Writes must be same-site JSON."
+    },
+    {
       "name": "Player profile",
       "description": "A player's CS2 totals, everyone's totals to compare with, and their results per map."
     },
@@ -14018,6 +14022,175 @@
           },
           "409": {
             "description": "No platform account has this Discord account"
+          }
+        }
+      }
+    },
+    "/api/pickup/admin": {
+      "get": {
+        "tags": [
+          "Pickup"
+        ],
+        "summary": "Pickup moderation",
+        "description": "The bans from pickup that hold now, with their reasons, for a\nmoderator or an admin. A site admin also gets the moderators and what\nis set per player (balance multiplier, display names); for a\nmoderator those are null.\n",
+        "responses": {
+          "200": {
+            "description": "Bans, and for admins moderators and player settings"
+          },
+          "403": {
+            "description": "Not a moderator"
+          }
+        }
+      }
+    },
+    "/api/pickup/admin/bans/{playerId}": {
+      "put": {
+        "tags": [
+          "Pickup"
+        ],
+        "summary": "Ban a player from pickup lobbies",
+        "description": "For a moderator or an admin. `length` in seconds, from one hour to\nthirty days, or null until lifted; `reason` (up to 200 characters) is\nfor moderators only and is never shown to the player. The player\nleaves the open lobby unless they are playing its match. Banning\nagain replaces the ban.\n",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "playerId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "length": {
+                    "type": "integer",
+                    "nullable": true
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Banned"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Pickup"
+        ],
+        "summary": "Lift a ban from pickup lobbies",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "playerId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lifted"
+          }
+        }
+      }
+    },
+    "/api/pickup/admin/moderators/{playerId}": {
+      "put": {
+        "tags": [
+          "Pickup"
+        ],
+        "summary": "Make a player a pickup moderator, or stop",
+        "description": "Site admins only. A moderator runs any pickup lobby as its host does\nand bans from pickup, and is not a site admin.\n",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "playerId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "on"
+                ],
+                "properties": {
+                  "on": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done"
+          }
+        }
+      }
+    },
+    "/api/pickup/admin/players/{playerId}": {
+      "put": {
+        "tags": [
+          "Pickup"
+        ],
+        "summary": "Set a player's balance multiplier and display names",
+        "description": "Site admins only. `multiplier` (0.1 to 1, or null for none) weighs\nthe player's rating in Balance teams and the draft by rating; it is\nshown to nobody else and nothing shown reveals it. `displayNames`\n(up to 12, each up to 32 characters; empty for none): one of them is\nshown in pickup lobbies in place of the player's own name.\n",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "playerId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "multiplier": {
+                    "type": "number",
+                    "nullable": true
+                  },
+                  "displayNames": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved"
           }
         }
       }

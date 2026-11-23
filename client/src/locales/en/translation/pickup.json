@@ -41,6 +41,7 @@
       },
       "makeHost": "Make host",
       "kick": "Kick",
+      "ban": "Ban",
       "rollOut": "Roll out"
     },
     "settings": {
@@ -187,6 +188,9 @@
       "not_on_roster": "That player is not playing in the match.",
       "not_eligible": "Only someone in the waiting room can come in.",
       "already_subbed_out": "That player already left this match and cannot come back into it.",
+      "banned": "You are banned from pickup lobbies.",
+      "bannedUntil": "You are banned from pickup lobbies until {{when}}.",
+      "banned_player": "That player is banned from pickup lobbies.",
       "may_not_spectate": "Only someone in the lobby who is not playing can spectate.",
       "spectate_refused": "The match server did not take that. Try again in a moment.",
       "unknown": "That did not work. Try again.",
@@ -226,6 +230,22 @@
     "vote": {
       "title": "Vote for the map",
       "progress": "{{voted}} of {{total}} voted · {{seconds}} s left"
+    },
+    "ban": {
+      "title": "Ban {{player}} from pickup",
+      "hint": "They leave the lobby and cannot open or join one until the ban ends. They are told until when, never why.",
+      "length": "For how long",
+      "lengths": {
+        "0": "Until lifted",
+        "3600": "1 hour",
+        "86400": "1 day",
+        "604800": "7 days",
+        "2592000": "30 days"
+      },
+      "reason": "Reason",
+      "reasonHint": "Only moderators see this.",
+      "cancel": "Cancel",
+      "confirm": "Ban"
     },
     "spectate": {
       "button": "Spectate",

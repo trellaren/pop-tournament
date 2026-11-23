@@ -8,6 +8,8 @@ import type { Untrusted } from '../../../utils/untrusted';
 import { PickupError, pickupService } from '../../../services/pickup/pickupService';
 import { actorOfDiscord as actorOf } from '../../../services/pickup/activitySignIn';
 import { modeServers } from '../../../services/pickup/spectators';
+import { banFromPickup, unbanFromPickup } from '../../../services/pickup/moderationService';
+import type { Actor } from '../../../services/pickup/rules';
 import { commandOf, doneText, parseCustomId, plainName } from './panelText';
 import { schedulePanel } from './panel';
 import { setPickupDiscordSettings, siteUrl } from './settings';
@@ -45,6 +47,33 @@ export const PICKUP_COMMAND = {
       name: 'invite',
       description: 'Host: invite someone to the lobby',
       options: [{ type: 6, name: 'user', description: 'Who to invite', required: true }],
+    },
+    {
+      type: 1,
+      name: 'ban',
+      description: 'Moderators: ban someone from pickup lobbies',
+      options: [
+        { type: 6, name: 'user', description: 'Who to ban', required: true },
+        {
+          type: 3,
+          name: 'length',
+          description: 'For how long (default: until lifted)',
+          choices: [
+            { name: '1 hour', value: '3600' },
+            { name: '1 day', value: '86400' },
+            { name: '7 days', value: '604800' },
+            { name: '30 days', value: '2592000' },
+            { name: 'Until lifted', value: '0' },
+          ],
+        },
+        { type: 3, name: 'reason', description: 'Why (only moderators see it)', max_length: 200 },
+      ],
+    },
+    {
+      type: 1,
+      name: 'unban',
+      description: 'Moderators: lift a ban from pickup lobbies',
+      options: [{ type: 6, name: 'user', description: 'Who to unban', required: true }],
     },
     {
       type: 1,
@@ -160,6 +189,32 @@ async function show(): Promise<string> {
   ].join('\n');
 }
 
+/** /pickup ban and unban, for moderators: the same checks as the site's. */
+async function moderate(
+  actor: Actor,
+  what: 'ban' | 'unban',
+  options: ReturnType<typeof optionsOf>
+): Promise<string> {
+  const named = (name: string) => options.find((o) => o.name === name)?.value;
+  const who = named('user');
+  const target = typeof who === 'string' ? await actorOf(who) : null;
+  if (!target)
+    return 'That person has not connected Discord on the site, so I cannot tell who they are.';
+  if (what === 'unban') {
+    await unbanFromPickup(actor, target.playerId);
+    return `<@${String(who)}> may join pickup lobbies again.`;
+  }
+  const seconds = Number(named('length') ?? 0);
+  const reason = named('reason');
+  await banFromPickup(
+    actor,
+    target.playerId,
+    seconds > 0 ? seconds : null,
+    typeof reason === 'string' ? reason : null
+  );
+  return `<@${String(who)}> is banned from pickup lobbies${seconds > 0 ? '' : ' until lifted'}.`;
+}
+
 /** The practice and retakes servers, as lines for the console. */
 async function servers(): Promise<string> {
   const online = await modeServers();
@@ -206,6 +261,9 @@ export async function pickupCommandAnswer(interaction: Record<string, Untrusted>
     const userId = userIdOf(interaction);
     const actor = userId ? await actorOf(userId) : null;
     if (!actor) return NOT_LINKED;
+    if (sub.name === 'ban' || sub.name === 'unban') {
+      return moderate(actor, sub.name, optionsOf(sub.options));
+    }
     if (sub.name === 'open') {
       const id = await pickupService.open(actor);
       return `Your lobby is open: ${siteUrl()}/pickup/${id}`;

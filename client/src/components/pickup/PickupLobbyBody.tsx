@@ -8,6 +8,7 @@ import { Box, Typography } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { EmptyPanel } from '../common/ui';
 import { apiErrorMessage } from '../../utils/api';
+import { PickupBanDialog } from './PickupBanDialog';
 import { PickupControls } from './PickupControls';
 import { PickupDraftBanner, PickupDraftPool } from './PickupDraft';
 import { PickupInvites } from './PickupInvites';
@@ -16,10 +17,12 @@ import { PickupStatus } from './PickupStatus';
 import { PickupSubstitute } from './PickupSubstitute';
 import { PickupTeamPanel } from './PickupTeamPanel';
 import {
+  pickupBanUntil,
   pickupRefusalCode,
   sendPickupCommand,
   usePickupLobby,
   type PickupCommand,
+  type PickupPlayer,
 } from './pickupApi';
 import type { Untrusted } from '../../utils/untrusted';
 
@@ -46,6 +49,7 @@ export function PickupLobbyBody({
   const lobby = read && byLink ? { ...read, can: { ...read.can, join: true } } : read;
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState('');
+  const [banning, setBanning] = React.useState<PickupPlayer | null>(null);
 
   const onCommand = (asked: PickupCommand) => {
     if (!lobbyId) return;
@@ -56,6 +60,15 @@ export function PickupLobbyBody({
     sendPickupCommand(lobbyId, command)
       .catch((err: Untrusted) => {
         const code = pickupRefusalCode(err);
+        if (code === 'banned') {
+          const until = pickupBanUntil(err);
+          setError(
+            until === null
+              ? t('pickup.refusal.banned')
+              : t('pickup.refusal.bannedUntil', { when: new Date(until * 1000).toLocaleString() })
+          );
+          return;
+        }
         setError(
           code
             ? t(`pickup.refusal.${code}`, apiErrorMessage(err, t('pickup.error')))
@@ -117,6 +130,7 @@ export function PickupLobbyBody({
               viewerId={viewerId}
               busy={busy}
               onCommand={onCommand}
+              onBan={setBanning}
             />
             <PickupControls lobby={lobby} busy={busy} onCommand={onCommand} />
             <PickupTeamPanel
@@ -125,6 +139,7 @@ export function PickupLobbyBody({
               viewerId={viewerId}
               busy={busy}
               onCommand={onCommand}
+              onBan={setBanning}
             />
           </Box>
           <Box sx={{ display: 'grid', gap: 2, mt: 2 }}>
@@ -143,10 +158,19 @@ export function PickupLobbyBody({
               viewerId={viewerId}
               busy={busy}
               onCommand={onCommand}
+              onBan={setBanning}
             />
             <PickupInvites lobby={lobby} busy={busy} onCommand={onCommand} />
             <PickupLog lines={lobby.log} />
           </Box>
+          <PickupBanDialog
+            player={banning}
+            onClose={() => setBanning(null)}
+            onBanned={() => {
+              setBanning(null);
+              reload();
+            }}
+          />
         </>
       )}
     </>

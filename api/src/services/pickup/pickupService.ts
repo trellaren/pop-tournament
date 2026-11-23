@@ -18,7 +18,6 @@ import {
   type Lobby,
   type Effect,
   type Outcome,
-  type RefusalCode,
   type Side,
   type SystemCommand,
 } from './rules';
@@ -33,7 +32,15 @@ import { emitPickupChange } from './pickupBus';
 import { isKnownPlayer } from './pickupInvites';
 import { inviteTokenFor, linkAdmits } from './pickupInviteLinks';
 import { maySpectate, spectateMatch, stopSpectating, type SpectatorConnect } from './spectators';
-import { buildList, buildView, ratingsOf, type LobbySummary, type LobbyView } from './pickupView';
+import { PickupError, REFUSALS, refusal } from './pickupErrors';
+import { activeBanOf } from './moderation';
+import {
+  balanceRatingsOf,
+  buildList,
+  buildView,
+  type LobbySummary,
+  type LobbyView,
+} from './pickupView';
 import {
   endPickupMatch,
   insertLobby,
@@ -49,66 +56,6 @@ import {
 
 /** The page topic: every pickup page re-reads when it is emitted. */
 export const PICKUP_TOPIC = 'pickup';
-
-export type PickupErrorCode =
-  | RefusalCode
-  | 'not_found'
-  | 'lobby_exists'
-  | 'in_other_lobby'
-  | 'invalid_map'
-  | 'unknown_player'
-  | 'invite_link_invalid'
-  | 'may_not_spectate'
-  | 'spectate_refused';
-
-export class PickupError extends Error {
-  constructor(
-    readonly status: 400 | 403 | 404 | 409,
-    readonly code: PickupErrorCode | 'bad_request',
-    message: string
-  ) {
-    super(message);
-  }
-}
-
-const REFUSALS: Record<PickupErrorCode, string> = {
-  closed: 'This lobby is closed',
-  stale: 'The lobby changed; try again',
-  not_allowed: 'Only the host or an admin can do that',
-  not_in_lobby: 'That player is not in the lobby',
-  side_full: 'That team is full',
-  lobby_full: 'The lobby is full',
-  teams_locked: 'The teams are locked',
-  no_change: 'Nothing to change',
-  invalid_settings: 'Those settings are not valid',
-  team_size_below_seated: 'A team has more players than that team size',
-  not_enough_players: 'Seat at least two players first',
-  wrong_state: 'That cannot be done right now',
-  in_match: 'Not while the match is running',
-  teams_not_full: 'Both teams must be full first',
-  invalid_map: 'That map is not in the pool',
-  not_your_turn: 'It is not your pick',
-  invalid_captains: 'Choose two different players in the lobby as captains',
-  not_found: 'No such lobby',
-  lobby_exists: 'A lobby is already open',
-  in_other_lobby: 'You are already in another lobby',
-  invite_only: 'This lobby is for invited players only',
-  already_invited: 'That player is already invited',
-  not_invited: 'That player is not invited',
-  invite_limit: 'The invite list is full',
-  unknown_player: 'No such player on the site',
-  invite_link_invalid: 'That invite link no longer works',
-  may_not_spectate: 'Only someone in the lobby who is not playing can spectate',
-  spectate_refused: 'The match server did not take that; try again in a moment',
-  not_on_roster: 'That player is not playing in the match',
-  not_eligible: 'Only someone in the waiting room can come in',
-  already_subbed_out: 'That player already left this match',
-};
-
-function refusal(code: PickupErrorCode): PickupError {
-  if (code === 'not_found') return new PickupError(404, code, REFUSALS[code]);
-  return new PickupError(code === 'not_allowed' ? 403 : 409, code, REFUSALS[code]);
-}
 
 /** A command as the API takes it: Balance's ratings are read here, never sent. */
 export type CommandInput =
@@ -149,6 +96,7 @@ export class PickupService {
       await this.openLobbies();
       if (await openLobbyIdOf(actor.playerId)) throw refusal('in_other_lobby');
       const now = this.clock();
+      await this.refuseBanned(actor.playerId, now, 'banned');
       const lobby = newLobby(randomUUID(), actor.playerId, now);
       try {
         await insertLobby(
@@ -193,6 +141,9 @@ export class PickupService {
         throw refusal('unknown_player');
       }
       const now = this.clock();
+      // A ban keeps someone out whatever their invite: told until when, never why.
+      if (input.type === 'join' && !inLobby) await this.refuseBanned(actor.playerId, now, 'banned');
+      if (input.type === 'invite') await this.refuseBanned(input.playerId, now, 'banned_player');
       const command = await this.asCommand(lobby, input, now);
       const outcome = decide(lobby, actor, command, { now, random: this.random, version });
       if (!outcome.ok) {
@@ -201,6 +152,12 @@ export class PickupService {
       }
       await this.apply(lobby, outcome, now);
     });
+  }
+
+  private async refuseBanned(playerId: string, now: number, code: 'banned' | 'banned_player') {
+    const ban = await activeBanOf(playerId, now);
+    if (!ban) return;
+    throw new PickupError(409, code, REFUSALS[code], code === 'banned' ? { until: ban.until } : {});
   }
 
   /**
@@ -214,10 +171,10 @@ export class PickupService {
     }
     if (input.type === 'balance') {
       const seatedIds = lobby.players.filter((p) => p.side !== null).map((p) => p.playerId);
-      return { type: 'balance', ratings: await ratingsOf(seatedIds) };
+      return { type: 'balance', ratings: await balanceRatingsOf(seatedIds) };
     }
     if (input.type === 'start_draft') {
-      return { ...input, ratings: await ratingsOf(lobby.players.map((p) => p.playerId)) };
+      return { ...input, ratings: await balanceRatingsOf(lobby.players.map((p) => p.playerId)) };
     }
     return input;
   }
@@ -428,3 +385,5 @@ export class PickupService {
 }
 
 export const pickupService = new PickupService();
+
+export { PickupError, type PickupErrorCode } from './pickupErrors';
