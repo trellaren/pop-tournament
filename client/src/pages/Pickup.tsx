@@ -3,6 +3,7 @@
  * already in a lobby is sent straight to it.
  */
 import React from 'react';
+import { PickupServers } from '../components/pickup/PickupServers';
 import { Box, Button, Container, Typography } from '@mui/material';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -108,6 +109,7 @@ export default function Pickup() {
             </Button>
           </Box>
         )}
+        <PickupServers />
       </Container>
     </Box>
   );

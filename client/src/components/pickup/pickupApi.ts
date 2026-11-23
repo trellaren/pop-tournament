@@ -100,6 +100,8 @@ export interface PickupLobby {
   draft: { captains: Record<Side, string>; turn: Side | null; pool: PickupPlayer[] } | null;
   teams: Record<Side, PickupPlayer[]>;
   waiting: PickupPlayer[];
+  /** Whether the viewer may watch the running match from inside its server. */
+  maySpectate: boolean;
   /** Who may come in for a seated player during the match, longest wait first. */
   substitutes: string[];
   /** Who left the running match by substitution. */
@@ -193,6 +195,38 @@ export function signInToPickupActivity(code: string): Promise<PickupActivitySign
 
 export async function sendPickupCommand(lobbyId: string, command: PickupCommand): Promise<void> {
   await api.post(`/api/pickup/${encodeURIComponent(lobbyId)}/commands`, command);
+}
+
+/** How to join a server: its address, an IP for the steam:// link, and its password if any. */
+export interface PickupConnect {
+  host: string;
+  ip: string | null;
+  port: number;
+  password: string | null;
+}
+
+/** Go on the running match's spectator list; null while the match has no server yet. */
+export async function spectatePickupMatch(lobbyId: string): Promise<PickupConnect | null> {
+  const answer = await api.post<{ connect: PickupConnect | null }>(
+    `/api/pickup/${encodeURIComponent(lobbyId)}/spectate`,
+    {}
+  );
+  return answer.connect;
+}
+
+export interface PickupModeServer {
+  name: string;
+  address: string;
+  connectIp: string | null;
+  port: number;
+}
+
+/** The practice and retakes servers that are online now. */
+export function listPickupServers(): Promise<{
+  practice: PickupModeServer[];
+  retakes: PickupModeServer[];
+}> {
+  return api.get('/api/pickup/servers');
 }
 
 /** A new invite link to the lobby: the page's path with its token. Host and admins only. */

@@ -732,6 +732,10 @@
       "description": "Pickup lobbies (docs/design/pickup-lobby.md): a group picks its own teams by choosing sides, scrambling or balancing. For signed-in players; writes must be same-site JSON."
     },
     {
+      "name": "Pickup: around the lobby",
+      "description": "The Discord Activity's sign-in, invite links, Spectate, and the practice and retakes servers (docs/design/pickup-lobby.md). For signed-in players, but for the Activity's sign-in itself."
+    },
+    {
       "name": "Player profile",
       "description": "A player's CS2 totals, everyone's totals to compare with, and their results per map."
     },
@@ -14018,6 +14022,20 @@
         }
       }
     },
+    "/api/pickup/servers": {
+      "get": {
+        "tags": [
+          "Pickup"
+        ],
+        "summary": "Practice and retakes servers",
+        "description": "The servers that are online with the Practice or the Retakes plugin\nset and take no matches: anyone signed in joins them on their own.\nAn admin chooses a server's plugin set on the Servers page.\n",
+        "responses": {
+          "200": {
+            "description": "The servers per mode"
+          }
+        }
+      }
+    },
     "/api/pickup/{id}": {
       "get": {
         "tags": [
@@ -14152,6 +14170,33 @@
           },
           "403": {
             "description": "Not the host or an admin"
+          }
+        }
+      }
+    },
+    "/api/pickup/{id}/spectate": {
+      "post": {
+        "tags": [
+          "Pickup"
+        ],
+        "summary": "Spectate the lobby's running match",
+        "description": "For someone in the lobby who is not playing, its host or an admin;\nnever someone substituted out of this match. Puts them on the match's\nspectator list and answers how to join its server (`connect` is null\nwhile the match has none). 409 `may_not_spectate`, or\n`spectate_refused` when the match server did not take it.\n",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "How to join the server"
+          },
+          "409": {
+            "description": "Refused, with a code"
           }
         }
       }

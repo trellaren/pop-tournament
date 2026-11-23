@@ -1020,6 +1020,30 @@ export interface GameIntegration<D extends IntegrationData = IntegrationData> {
     slug: string,
     change: { outId: string; inId: string; inName: string; team: 'team1' | 'team2' }
   ): Promise<boolean>;
+  /**
+   * Put someone on a match's spectator list, or take them off (the pickup
+   * lobby's Spectate). Never a player of either team. Same delivery and the
+   * same answer as `substitutePlayer`.
+   */
+  matchSpectator?(
+    slug: string,
+    change: { id: string; name: string; watching: boolean }
+  ): Promise<boolean>;
+  /**
+   * How a spectator joins a running match's server, or null when it has none
+   * or is over. Core decides who may ask; the answer is never logged.
+   */
+  matchSpectatorConnect?(
+    slug: string
+  ): Promise<{ host: string; ip: string | null; port: number; password: string | null } | null>;
+  /**
+   * Online servers players join on their own for one mode, outside matches
+   * (CS2: the Practice and Retakes plugin sets). `connectIp` is for a
+   * steam://connect/ link.
+   */
+  modeServers?(
+    mode: 'practice' | 'retakes'
+  ): Promise<Array<{ name: string; address: string; connectIp: string | null; port: number }>>;
   /** The map pools an admin can pick per matchmaking mode (CS2: the enabled map pools). */
   matchmakingPools?(): Promise<Array<{ id: number; name: string; maps: number }>>;
   /**

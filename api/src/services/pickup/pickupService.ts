@@ -32,6 +32,7 @@ import {
 import { emitPickupChange } from './pickupBus';
 import { isKnownPlayer } from './pickupInvites';
 import { inviteTokenFor, linkAdmits } from './pickupInviteLinks';
+import { maySpectate, spectateMatch, stopSpectating, type SpectatorConnect } from './spectators';
 import { buildList, buildView, ratingsOf, type LobbySummary, type LobbyView } from './pickupView';
 import {
   endPickupMatch,
@@ -56,7 +57,9 @@ export type PickupErrorCode =
   | 'in_other_lobby'
   | 'invalid_map'
   | 'unknown_player'
-  | 'invite_link_invalid';
+  | 'invite_link_invalid'
+  | 'may_not_spectate'
+  | 'spectate_refused';
 
 export class PickupError extends Error {
   constructor(
@@ -95,6 +98,8 @@ const REFUSALS: Record<PickupErrorCode, string> = {
   invite_limit: 'The invite list is full',
   unknown_player: 'No such player on the site',
   invite_link_invalid: 'That invite link no longer works',
+  may_not_spectate: 'Only someone in the lobby who is not playing can spectate',
+  spectate_refused: 'The match server did not take that; try again in a moment',
   not_on_roster: 'That player is not playing in the match',
   not_eligible: 'Only someone in the waiting room can come in',
   already_subbed_out: 'That player already left this match',
@@ -227,6 +232,13 @@ export class PickupService {
     if (outcome.lobby.state === 'closed') log.info(`[PICKUP] lobby ${before.id} closed`);
     emitTopic(PICKUP_TOPIC);
     for (const effect of outcome.effects) await this.run(outcome.lobby, effect, now);
+    // Whoever leaves the lobby stops being a spectator of its match.
+    const slug = before.matchSlug;
+    for (const event of outcome.events) {
+      const gone = event.type === 'left' || event.type === 'kicked' ? event.data.playerId : null;
+      if (!slug || typeof gone !== 'string') continue;
+      setImmediate(() => void stopSpectating(slug, gone).catch(() => undefined));
+    }
     emitPickupChange({ lobby: outcome.lobby, events: outcome.events, effects: outcome.effects });
   }
 
@@ -385,6 +397,20 @@ export class PickupService {
     if (lobby.state === 'closed') throw refusal('closed');
     if (!mayManage(lobby, actor)) throw refusal('not_allowed');
     return inviteTokenFor(lobby, actor, this.clock());
+  }
+
+  /**
+   * Put the actor on the running match's spectator list and say how to join
+   * its server (null while it has none). Not under the lock: the lobby does
+   * not change, and the server's answer can take seconds.
+   */
+  async spectate(lobbyId: string, actor: Actor): Promise<SpectatorConnect | null> {
+    const lobby = await loadLobby(lobbyId);
+    if (!lobby) throw refusal('not_found');
+    if (!lobby.matchSlug || !maySpectate(lobby, actor)) throw refusal('may_not_spectate');
+    const { listed, connect } = await spectateMatch(lobby.matchSlug, actor.playerId);
+    if (!listed) throw refusal('spectate_refused');
+    return connect;
   }
 
   /** The lobby as one viewer sees it. */
