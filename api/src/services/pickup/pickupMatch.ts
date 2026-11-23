@@ -12,7 +12,7 @@ import { matchService } from '../matchService';
 import { matchmakingSides } from '../matchmaking/matchmakingService';
 import type { MatchmakingMode } from '../matchmaking/rules';
 import type { DbMatchRow } from '../../types/database.types';
-import { seated, type Lobby, type Side } from './rules';
+import { seated, type Lobby, type LobbyFormat, type Side } from './rules';
 import { PICKUP_GAME, insertPickupMatch, loadNames } from './pickupStore';
 
 export interface PickupMap {
@@ -20,11 +20,13 @@ export interface PickupMap {
   name: string;
 }
 
-/** The platform mode whose maps and rules a team size plays by. */
-function modeOf(teamSize: number): MatchmakingMode {
-  if (teamSize === 1) return '1v1';
-  if (teamSize === 2) return '2v2';
-  return '5v5';
+/**
+ * The platform mode whose maps and rules a format plays by: wingman is the
+ * platform's 2v2 (wingman maps, MR8, no knife round) also with one a side;
+ * classic is its 5v5 whatever the team size.
+ */
+function modeOf(format: LobbyFormat): MatchmakingMode {
+  return format === 'wingman' ? '2v2' : '5v5';
 }
 
 const MAX_ROUNDS: Record<MatchmakingMode, number> = { '5v5': 24, '2v2': 16, '1v1': 12 };
@@ -41,14 +43,14 @@ export async function mapPools(): Promise<PickupPool[]> {
   return (await getIntegration(PICKUP_GAME).matchmakingPools?.()) ?? [];
 }
 
-/** The maps a lobby of this team size picks from. */
+/** The maps a lobby of this format picks from. */
 export async function mapPoolFor(
-  teamSize: number,
+  format: LobbyFormat,
   poolId: number | null = null
 ): Promise<PickupMap[]> {
   if (!hasIntegration(PICKUP_GAME)) return [];
   const pool =
-    (await getIntegration(PICKUP_GAME).matchmakingMapPool?.(modeOf(teamSize), poolId)) ?? [];
+    (await getIntegration(PICKUP_GAME).matchmakingMapPool?.(modeOf(format), poolId)) ?? [];
   return pool.map((m) => ({ id: m.id, name: m.name }));
 }
 
@@ -63,8 +65,8 @@ export async function createPickupMatch(
   /** The two teams veto the map on the match page before it gets a server. */
   wantsVeto: boolean
 ): Promise<void> {
-  const pool = await mapPoolFor(lobby.settings.teamSize, lobby.settings.poolId);
-  if (pool.length === 0) throw new Error('No maps for this team size');
+  const pool = await mapPoolFor(lobby.settings.format, lobby.settings.poolId);
+  if (pool.length === 0) throw new Error('No maps for this format');
   const veto = wantsVeto && pool.length > 1;
   const picked = pool.find((m) => m.id === lobby.pickedMap);
   const map = veto ? null : (picked?.id ?? pool[randomInt(pool.length)].id);
@@ -83,7 +85,7 @@ export async function createPickupMatch(
       players: Object.fromEntries(roster.map((id) => [id, names.get(id)?.name ?? id])),
     };
   };
-  const mode = modeOf(lobby.settings.teamSize);
+  const mode = modeOf(lobby.settings.format);
 
   await matchService.createMatch(
     {

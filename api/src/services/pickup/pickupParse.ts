@@ -1,6 +1,7 @@
 /** The JSON columns of a pickup lobby, read back with care: settings, the draft, the map votes. */
 import {
   DEFAULT_TEAM_SIZE,
+  FORMATS,
   MAP_METHODS,
   MAX_TEAM_SIZE,
   MIN_TEAM_SIZE,
@@ -39,6 +40,7 @@ export function parseDraft(raw: string | null): Draft | null {
 /** Settings as stored; anything unreadable or out of range reads as its default. */
 export function parseSettings(raw: string): LobbySettings {
   const settings: LobbySettings = {
+    format: 'classic',
     teamSize: DEFAULT_TEAM_SIZE,
     rollOut: 'most_played',
     mapMethod: 'pick',
@@ -48,6 +50,7 @@ export function parseSettings(raw: string): LobbySettings {
     const parsed: Untrusted = JSON.parse(raw);
     if (typeof parsed !== 'object' || parsed === null) return settings;
     const fields: Record<string, Untrusted> = { ...parsed };
+    settings.format = FORMATS.find((f) => f === fields.format) ?? settings.format;
     const size = Number(fields.teamSize);
     if (Number.isInteger(size) && size >= MIN_TEAM_SIZE && size <= MAX_TEAM_SIZE) {
       settings.teamSize = size;

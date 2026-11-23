@@ -10,6 +10,10 @@ export const SIDES: readonly Side[] = ['a', 'b'];
 export const MIN_TEAM_SIZE = 1;
 export const MAX_TEAM_SIZE = 5;
 export const DEFAULT_TEAM_SIZE = 5;
+/** Classic is the full game; wingman is one bomb site, 1v1 or 2v2, at MR8. */
+export type LobbyFormat = 'classic' | 'wingman';
+export const FORMATS: readonly LobbyFormat[] = ['classic', 'wingman'];
+export const WINGMAN_TEAM_SIZE = 2;
 /** Everyone in a lobby, seated or waiting. */
 export const MAX_LOBBY_PLAYERS = 40;
 /** How long the seated players have to press Ready after Start. */
@@ -68,6 +72,7 @@ export const ROLL_OUT_RULES: readonly RollOutRule[] = ['most_played', 'losers'];
 export const IDLE_SECONDS = 2 * 60 * 60;
 
 export interface LobbySettings {
+  format: LobbyFormat;
   teamSize: number;
   rollOut: RollOutRule;
   mapMethod: MapMethod;
@@ -114,6 +119,7 @@ export type Command =
   | { type: 'lock_teams'; locked: boolean }
   | {
       type: 'set_settings';
+      format?: LobbyFormat;
       teamSize?: number;
       rollOut?: RollOutRule;
       mapMethod?: MapMethod;
@@ -210,6 +216,7 @@ export function newLobby(id: string, hostId: string, now: number): Lobby {
     hostId,
     version: 1,
     settings: {
+      format: 'classic',
       teamSize: DEFAULT_TEAM_SIZE,
       rollOut: 'most_played',
       mapMethod: 'pick',

@@ -1,7 +1,7 @@
 /** Reading a lobby command from a request body: anything not understood is refused. */
 import type { Untrusted } from '../../utils/untrusted';
 import { PickupError, type CommandInput } from './pickupService';
-import { CAPTAIN_METHODS, MAP_METHODS, ROLL_OUT_RULES, type Side } from './rules';
+import { CAPTAIN_METHODS, FORMATS, MAP_METHODS, ROLL_OUT_RULES, type Side } from './rules';
 
 const bad = (message: string) => new PickupError(400, 'bad_request', message);
 
@@ -23,6 +23,8 @@ function settingsCommand(fields: Record<string, Untrusted>): CommandInput {
   if (teamSize !== undefined && typeof teamSize !== 'number') {
     throw bad('teamSize must be a number');
   }
+  const format = FORMATS.find((f) => f === fields.format);
+  if (fields.format !== undefined && !format) throw bad('format must be "classic" or "wingman"');
   const rollOut = ROLL_OUT_RULES.find((rule) => rule === fields.rollOut);
   if (fields.rollOut !== undefined && !rollOut) throw bad(BAD_ROLL_OUT);
   const mapMethod = MAP_METHODS.find((method) => method === fields.mapMethod);
@@ -32,11 +34,12 @@ function settingsCommand(fields: Record<string, Untrusted>): CommandInput {
   if (poolId !== undefined && poolId !== null && typeof poolId !== 'number') {
     throw bad('poolId must be a pool id or null');
   }
-  if (teamSize === undefined && !rollOut && !mapMethod && poolId === undefined) {
+  if (teamSize === undefined && !format && !rollOut && !mapMethod && poolId === undefined) {
     throw bad('Send a setting to change');
   }
   return {
     type: 'set_settings',
+    ...(format ? { format } : {}),
     ...(teamSize === undefined ? {} : { teamSize }),
     ...(rollOut ? { rollOut } : {}),
     ...(mapMethod ? { mapMethod } : {}),

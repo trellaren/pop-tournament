@@ -5,8 +5,9 @@ import {
   type APIRequestContext,
   type Page,
 } from '@playwright/test';
-import type { Side } from '../../api/src/services/pickup/rules';
 import { signInAsPlayer, signInAsPlayerViaRequest, signInViaRequest } from '../helpers/auth';
+import { BASE_URL, TAGS, type LobbyBody } from './pickup/fixture';
+import { wingmanTests } from './pickup/wingman';
 
 /**
  * Pickup lobby (docs/design/pickup-lobby.md; the pure rules are in
@@ -17,40 +18,6 @@ import { signInAsPlayer, signInAsPlayerViaRequest, signInViaRequest } from '../h
  * @tag ui
  * @tag pickup
  */
-
-const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3069';
-const TAGS = { tag: ['@ui', '@pickup'] };
-
-interface LobbyBody {
-  lobby: {
-    id: string;
-    state: string;
-    version: number;
-    hostId: string;
-    teamsLocked: boolean;
-    settings: { teamSize: number; rollOut: string };
-    teams: Record<
-      Side,
-      Array<{ playerId: string; name: string; isHost: boolean; ready: boolean; gamesInRow: number }>
-    >;
-    waiting: Array<{ playerId: string }>;
-    log: Array<{ type: string; data: Record<string, string | number | boolean | null> }>;
-    deadline: number | null;
-    pickedMap: string | null;
-    maps: Array<{ id: string }>;
-    match: {
-      slug: string;
-      matchNo: number;
-      status: string;
-      map: string | null;
-      vetoing: boolean;
-    } | null;
-    vote: { counts: Record<string, number>; voted: number; voters: number } | null;
-    draft: { turn: Side | null; pool: Array<{ playerId: string }> } | null;
-    me: string | null;
-    can: Record<string, boolean>;
-  };
-}
 
 /** Save a screenshot when PICKUP_SCREENSHOTS names a folder. */
 async function shot(page: Page, name: string): Promise<void> {
@@ -300,7 +267,8 @@ test.describe.serial('pickup lobby', () => {
     expect((await send(0, { type: 'join', side: 'b' })).ok()).toBe(true);
     let lobby = await view(2);
     expect(lobby.maps.length).toBeGreaterThan(0);
-    const map = lobby.maps[0].id;
+    // An earlier test may have left a map picked: the team size no longer forgets it.
+    const map = (lobby.maps.find((m) => m.id !== lobby.pickedMap) ?? lobby.maps[0]).id;
     expect((await send(2, { type: 'pick_map', map: 'de_no_such_map' })).status()).toBe(409);
     expect((await send(2, { type: 'pick_map', map })).ok()).toBe(true);
 
@@ -382,6 +350,18 @@ test.describe.serial('pickup lobby', () => {
 
     expect((await send(2, { type: 'close', version: lobby.version })).ok()).toBe(true);
     await admin.dispose();
+  });
+
+  wingmanTests({
+    steamIds,
+    contexts,
+    view,
+    send,
+    open: async (who) => {
+      const opened = await contexts[who].post('/api/pickup', { data: {} });
+      expect(opened.ok(), await opened.text()).toBe(true);
+      lobbyId = ((await opened.json()) as { id: string }).id;
+    },
   });
 
   test('the page: open, join from a second browser, scramble, close', TAGS, async ({ browser }) => {

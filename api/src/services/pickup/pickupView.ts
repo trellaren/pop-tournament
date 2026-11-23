@@ -67,6 +67,7 @@ export interface LobbySummary {
   state: Lobby['state'];
   hostId: string;
   hostName: string;
+  format: Lobby['settings']['format'];
   teamSize: number;
   teamsLocked: boolean;
   seated: number;
@@ -156,9 +157,7 @@ export async function buildView(lobby: Lobby, viewer: Actor): Promise<LobbyView>
   const lobbyId = lobby.id;
   const matchState = lobby.matchSlug ? await loadMatchState(lobby.matchSlug) : null;
   const maps =
-    lobby.state === 'closed'
-      ? []
-      : await mapPoolFor(lobby.settings.teamSize, lobby.settings.poolId);
+    lobby.state === 'closed' ? [] : await mapPoolFor(lobby.settings.format, lobby.settings.poolId);
   const events = await loadEvents(lobbyId);
   const ids = lobby.players.map((p) => p.playerId);
   const mentioned = events.flatMap((e) => {
@@ -228,6 +227,7 @@ export async function buildList(
       state: l.state,
       hostId: l.hostId,
       hostName: names.get(l.hostId)?.name ?? UNKNOWN_PLAYER,
+      format: l.settings.format,
       teamSize: l.settings.teamSize,
       teamsLocked: l.teamsLocked,
       seated: l.players.filter((p) => p.side !== null).length,

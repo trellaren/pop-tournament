@@ -10,7 +10,8 @@ interface PickupControlsProps {
   onCommand: (command: PickupCommand) => void;
 }
 
-const TEAM_SIZES = [1, 2, 3, 4, 5];
+const TEAM_SIZES = { classic: [1, 2, 3, 4, 5], wingman: [1, 2] };
+const FORMATS = ['classic', 'wingman'] as const;
 const RANDOM_MAP = 'random';
 const DEFAULT_POOL = 'default';
 const METHODS = ['pick', 'veto', 'vote'] as const;
@@ -26,6 +27,26 @@ export function PickupControls({ lobby, busy, onCommand }: PickupControlsProps) 
       <Typography variant="h6" component="h2">
         {t('pickup.settings.title')}
       </Typography>
+      {can.set_settings && (
+        <TextField
+          select
+          size="small"
+          label={t('pickup.settings.format')}
+          value={lobby.settings.format}
+          disabled={busy}
+          onChange={(event) => {
+            const format = FORMATS.find((f) => f === event.target.value);
+            if (format) onCommand({ type: 'set_settings', format });
+          }}
+          slotProps={{ htmlInput: { 'data-testid': 'pickup-format' } }}
+        >
+          {FORMATS.map((format) => (
+            <MenuItem key={format} value={format}>
+              {t(`pickup.settings.formatName.${format}`)}
+            </MenuItem>
+          ))}
+        </TextField>
+      )}
       {can.set_settings ? (
         <TextField
           select
@@ -38,7 +59,7 @@ export function PickupControls({ lobby, busy, onCommand }: PickupControlsProps) 
           }
           slotProps={{ htmlInput: { 'data-testid': 'pickup-team-size' } }}
         >
-          {TEAM_SIZES.map((size) => (
+          {TEAM_SIZES[lobby.settings.format].map((size) => (
             <MenuItem key={size} value={size}>
               {t('pickup.settings.versus', { size })}
             </MenuItem>
@@ -46,6 +67,7 @@ export function PickupControls({ lobby, busy, onCommand }: PickupControlsProps) 
         </TextField>
       ) : (
         <Typography variant="body2" color="text.secondary">
+          {lobby.settings.format === 'wingman' && `${t('pickup.settings.formatName.wingman')} · `}
           {t('pickup.settings.versus', { size: lobby.settings.teamSize })}
         </Typography>
       )}

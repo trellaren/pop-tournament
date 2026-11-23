@@ -185,7 +185,8 @@ function stateLine(lobby: LobbyView, siteUrl: string): string {
   const size = lobby.settings.teamSize;
   const map = mapName(lobby.pickedMap) ?? 'random map';
   const locked = lobby.teamsLocked ? ' · teams locked' : '';
-  return `Gathering · ${size}v${size} · ${map}${locked}`;
+  const wingman = lobby.settings.format === 'wingman' ? 'Wingman · ' : '';
+  return `Gathering · ${wingman}${size}v${size} · ${map}${locked}`;
 }
 
 function button(
