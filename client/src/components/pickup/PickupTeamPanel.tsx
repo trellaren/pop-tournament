@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { Panel } from '../common/ui';
 import { playerProfilePath } from '../../paths';
 import type { PickupCommand, PickupLobby, PickupPlayer, Side } from './pickupApi';
+import { usePickupHost } from './pickupHost';
 
 interface PickupTeamPanelProps {
   lobby: PickupLobby;
@@ -25,6 +26,7 @@ function averageRating(players: PickupPlayer[]): number | null {
 
 export function PickupTeamPanel({ lobby, side, viewerId, busy, onCommand }: PickupTeamPanelProps) {
   const { t } = useTranslation();
+  const host = usePickupHost();
   const players = side === null ? lobby.waiting : lobby.teams[side];
   const teamSize = lobby.settings.teamSize;
   const where = side ?? 'waiting';
@@ -61,13 +63,17 @@ export function PickupTeamPanel({ lobby, side, viewerId, busy, onCommand }: Pick
           sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.75, flexWrap: 'wrap' }}
         >
           <Avatar src={player.avatarUrl ?? undefined} sx={{ width: 28, height: 28 }} />
-          <Typography
-            component={RouterLink}
-            to={playerProfilePath(player.playerId)}
-            sx={{ color: 'inherit', textDecoration: 'none', fontWeight: 600 }}
-          >
-            {player.name}
-          </Typography>
+          {host.openOutside ? (
+            <Typography sx={{ fontWeight: 600 }}>{player.name}</Typography>
+          ) : (
+            <Typography
+              component={RouterLink}
+              to={playerProfilePath(player.playerId)}
+              sx={{ color: 'inherit', textDecoration: 'none', fontWeight: 600 }}
+            >
+              {player.name}
+            </Typography>
+          )}
           {player.isHost && <Chip size="small" label={t('pickup.host')} />}
           {player.playerId === captain && (
             <Chip size="small" color="primary" label={t('pickup.draft.captain')} />

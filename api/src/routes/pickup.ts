@@ -8,22 +8,40 @@ import { Router } from 'express';
 import { resolveViewerIdentity } from '../utils/viewerIdentity';
 import { isSameSiteRequest } from '../utils/accountConnections';
 import { log } from '../utils/logger';
-import { PickupError, pickupService, type CommandInput } from '../services/pickup/pickupService';
-import {
-  CAPTAIN_METHODS,
-  MAP_METHODS,
-  ROLL_OUT_RULES,
-  type Actor,
-  type Side,
-} from '../services/pickup/rules';
+import { PickupError, pickupService } from '../services/pickup/pickupService';
+import type { Actor } from '../services/pickup/rules';
+import { parseCommand } from '../services/pickup/parseCommand';
 import type { Untrusted } from '../utils/untrusted';
+import { bearerOf } from '../services/pickup/activityToken';
+import {
+  activityClientId,
+  actorOfActivityToken,
+  signInToActivity,
+} from '../services/pickup/activitySignIn';
 
 const router = Router();
 
-type PickupRequest = Request & { pickupActor?: Actor };
+type PickupRequest = Request & { pickupActor?: Actor; pickupBearer?: boolean };
 
-/** A signed-in player (not an API token), acting as themselves. */
+const nowSeconds = () => Math.floor(Date.now() / 1000);
+
+/**
+ * A signed-in player (not an API token), acting as themselves: the site's
+ * session, or inside Discord the Activity's token, which is judged alone.
+ */
 async function requirePlayer(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const bearer = bearerOf(req.get('authorization'));
+  if (bearer) {
+    const actor = await actorOfActivityToken(bearer, nowSeconds());
+    if (!actor) {
+      res.status(401).json({ success: false, code: 'token_expired', error: 'Sign in again' });
+      return;
+    }
+    (req as PickupRequest).pickupActor = actor;
+    (req as PickupRequest).pickupBearer = true;
+    next();
+    return;
+  }
   const identity = await resolveViewerIdentity(req);
   if (!identity.realSteamId) {
     res.status(401).json({ success: false, error: 'Sign in to use pickup lobbies' });
@@ -40,8 +58,13 @@ async function requirePlayer(req: Request, res: Response, next: NextFunction): P
   next();
 }
 
+/**
+ * Writes are JSON, and with a cookie same-site. A bearer token is not sent by
+ * a browser on its own, so a request carrying one needs no same-site check
+ * (inside Discord the page's origin is Discord's proxy).
+ */
 function sameSiteJson(req: Request, res: Response, next: NextFunction): void {
-  if (!isSameSiteRequest(req)) {
+  if (!(req as PickupRequest).pickupBearer && !isSameSiteRequest(req)) {
     res.status(403).json({ success: false, error: 'Request refused' });
     return;
   }
@@ -75,108 +98,78 @@ function handle(what: string, fn: (req: Request, res: Response) => Promise<Respo
   };
 }
 
-const bad = (message: string) => new PickupError(400, 'bad_request', message);
+/**
+ * @openapi
+ * /api/pickup/activity/config:
+ *   get:
+ *     tags: [Pickup]
+ *     summary: What the Discord Activity needs to start
+ *     description: |
+ *       The Discord application's id the Activity authorizes against, or
+ *       null while "Sign in with Discord" is not set up. No secret.
+ *     responses:
+ *       200:
+ *         description: The Activity's configuration
+ */
+router.get(
+  '/activity/config',
+  handle('read the Activity configuration', async (_req, res) => {
+    return res.json({ success: true, clientId: activityClientId() });
+  })
+);
 
-function sideOf(value: Untrusted): Side | null {
-  if (value === 'a' || value === 'b') return value;
-  if (value === null || value === undefined) return null;
-  throw bad('side must be "a", "b" or null');
-}
-
-function playerIdOf(value: Untrusted): string {
-  if (typeof value === 'string' && /^\d{1,32}$/.test(value)) return value;
-  throw bad('playerId is required');
-}
-
-const BAD_ROLL_OUT = 'rollOut must be "most_played" or "losers"';
-
-function settingsCommand(fields: Record<string, Untrusted>): CommandInput {
-  const { teamSize, poolId } = fields;
-  if (teamSize !== undefined && typeof teamSize !== 'number') {
-    throw bad('teamSize must be a number');
-  }
-  const rollOut = ROLL_OUT_RULES.find((rule) => rule === fields.rollOut);
-  if (fields.rollOut !== undefined && !rollOut) throw bad(BAD_ROLL_OUT);
-  const mapMethod = MAP_METHODS.find((method) => method === fields.mapMethod);
-  if (fields.mapMethod !== undefined && !mapMethod) {
-    throw bad('mapMethod must be "pick", "veto" or "vote"');
-  }
-  if (poolId !== undefined && poolId !== null && typeof poolId !== 'number') {
-    throw bad('poolId must be a pool id or null');
-  }
-  if (teamSize === undefined && !rollOut && !mapMethod && poolId === undefined) {
-    throw bad('Send a setting to change');
-  }
-  return {
-    type: 'set_settings',
-    ...(teamSize === undefined ? {} : { teamSize }),
-    ...(rollOut ? { rollOut } : {}),
-    ...(mapMethod ? { mapMethod } : {}),
-    ...(poolId === undefined ? {} : { poolId }),
-  };
-}
-
-function draftCommand(fields: Record<string, Untrusted>): CommandInput {
-  const method = CAPTAIN_METHODS.find((m) => m === fields.method);
-  if (!method) throw bad('method must be "random", "rating" or "host"');
-  if (method !== 'host') return { type: 'start_draft', method };
-  return {
-    type: 'start_draft',
-    method,
-    captainA: playerIdOf(fields.captainA),
-    captainB: playerIdOf(fields.captainB),
-  };
-}
-
-/** Read a command from a request body. Anything not understood is refused. */
-export function parseCommand(body: Untrusted): { command: CommandInput; version?: number } {
-  if (typeof body !== 'object' || body === null) throw bad('Send a command');
-  const fields: Record<string, Untrusted> = { ...body };
-  const rawVersion = fields.version;
-  if (rawVersion !== undefined && !Number.isInteger(rawVersion)) {
-    throw bad('version must be a whole number');
-  }
-  const version = typeof rawVersion === 'number' ? rawVersion : undefined;
-  switch (fields.type) {
-    case 'join':
-      return { command: { type: 'join', side: sideOf(fields.side) }, version };
-    case 'leave':
-    case 'scramble':
-    case 'balance':
-    case 'start':
-    case 'ready':
-    case 'cancel':
-    case 'close':
-      return { command: { type: fields.type }, version };
-    case 'move':
-      return {
-        command: { type: 'move', playerId: playerIdOf(fields.playerId), side: sideOf(fields.side) },
-        version,
-      };
-    case 'kick':
-    case 'pick':
-    case 'roll_out':
-    case 'make_host':
-      return { command: { type: fields.type, playerId: playerIdOf(fields.playerId) }, version };
-    case 'lock_teams':
-      if (typeof fields.locked !== 'boolean') throw bad('locked must be true or false');
-      return { command: { type: 'lock_teams', locked: fields.locked }, version };
-    case 'start_draft':
-      return { command: draftCommand(fields), version };
-    case 'vote_map':
-      if (typeof fields.map !== 'string') throw bad('map must be a map id');
-      return { command: { type: 'vote_map', map: fields.map }, version };
-    case 'pick_map':
-      if (fields.map !== null && typeof fields.map !== 'string') {
-        throw bad('map must be a map id or null');
-      }
-      return { command: { type: 'pick_map', map: fields.map }, version };
-    case 'set_settings':
-      return { command: settingsCommand(fields), version };
-    default:
-      throw bad('Unknown command');
-  }
-}
+/**
+ * @openapi
+ * /api/pickup/activity/token:
+ *   post:
+ *     tags: [Pickup]
+ *     summary: Sign in to the Discord Activity
+ *     description: |
+ *       Exchanges the code from Discord's Embedded App SDK for a one-hour
+ *       token of the platform account that has that Discord account
+ *       connected. The token is sent as `Authorization: Bearer` to the
+ *       pickup routes. 409 `not_linked` when no account has it; 503
+ *       `not_configured` while Discord sign-in is not set up.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [code]
+ *             properties:
+ *               code:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: The token
+ *       409:
+ *         description: No platform account has this Discord account
+ */
+router.post(
+  '/activity/token',
+  handle('sign in to the Activity', async (req, res) => {
+    const body: Untrusted = req.body;
+    const code =
+      typeof body === 'object' && body !== null && 'code' in body ? body.code : undefined;
+    if (!req.is('application/json') || typeof code !== 'string' || !/^[\w-]{8,256}$/.test(code)) {
+      return res.status(400).json({ success: false, error: 'Send the code as JSON' });
+    }
+    const signedIn = await signInToActivity(code, nowSeconds());
+    if (!signedIn.ok) {
+      const status = { not_configured: 503, discord_refused: 502, not_linked: 409 }[signedIn.code];
+      return res.status(status).json({ success: false, code: signedIn.code });
+    }
+    res.set('Cache-Control', 'no-store');
+    return res.json({
+      success: true,
+      token: signedIn.token,
+      expiresAt: signedIn.expiresAt,
+      accessToken: signedIn.accessToken,
+      playerId: signedIn.playerId,
+    });
+  })
+);
 
 /**
  * @openapi

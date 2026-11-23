@@ -41,6 +41,15 @@ import { applyFaviconTheme } from './theme/favicon';
 import { IconDefaults } from './theme/icons';
 import { bootCodeModules } from './module-loader/boot';
 
+// Discord opens the Activity at the site's root with its own query (frame_id,
+// instance_id): that launch belongs to the pickup Activity page.
+{
+  const launch = new URLSearchParams(window.location.search);
+  if (window.location.pathname === '/' && launch.has('frame_id') && launch.has('instance_id')) {
+    window.history.replaceState(null, '', `/activity${window.location.search}`);
+  }
+}
+
 // Log application version on startup (injected by Vite from package.json)
 
 console.info('[Auto Tournament] App version:', __APP_VERSION__);

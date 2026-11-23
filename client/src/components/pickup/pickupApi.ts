@@ -3,6 +3,7 @@ import React from 'react';
 import { api } from '../../utils/api';
 import { useTopic } from '../../hooks/useTopic';
 import type { Untrusted } from '../../utils/untrusted';
+import { usePickupHost } from './pickupHost';
 
 export type Side = 'a' | 'b';
 
@@ -143,6 +144,22 @@ export async function openPickupLobby(): Promise<string> {
   return answer.id;
 }
 
+export interface PickupActivitySignIn {
+  token: string;
+  expiresAt: number;
+  accessToken: string;
+  playerId: string;
+}
+
+export async function pickupActivityClientId(): Promise<string | null> {
+  const answer = await api.get<{ clientId: string | null }>('/api/pickup/activity/config');
+  return answer.clientId;
+}
+
+export function signInToPickupActivity(code: string): Promise<PickupActivitySignIn> {
+  return api.post<PickupActivitySignIn>('/api/pickup/activity/token', { code });
+}
+
 export async function sendPickupCommand(lobbyId: string, command: PickupCommand): Promise<void> {
   await api.post(`/api/pickup/${encodeURIComponent(lobbyId)}/commands`, command);
 }
@@ -186,6 +203,13 @@ export function usePickupLobby(lobbyId: string | undefined): PickupLobbyState {
       })
       .finally(() => setReady(true));
   }, [lobbyId]);
+
+  const { pollMs } = usePickupHost();
+  React.useEffect(() => {
+    if (pollMs <= 0) return undefined;
+    const timer = window.setInterval(reload, pollMs);
+    return () => window.clearInterval(timer);
+  }, [pollMs, reload]);
 
   React.useEffect(reload, [reload]);
   // The match's own progress (server found, live) arrives as match updates.

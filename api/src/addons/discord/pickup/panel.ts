@@ -45,7 +45,8 @@ async function write(lobbyId: string): Promise<void> {
   const lobby = await viewOf(lobbyId);
   if (!lobby) return;
   const existing = await panelOf(lobbyId);
-  const body = panelMessage(lobby, siteUrl());
+  const settings = await pickupDiscordSettings();
+  const body = panelMessage(lobby, siteUrl(), { activity: settings.activity });
 
   if (existing) {
     const edited = await discordFetch(
@@ -64,7 +65,7 @@ async function write(lobbyId: string): Promise<void> {
     await db.runAsync('DELETE FROM pickup_discord_panels WHERE lobby_id = ?', [lobbyId]);
   }
   if (lobby.state === 'closed') return;
-  const { channelId } = await pickupDiscordSettings();
+  const { channelId } = settings;
   if (!channelId) return;
   const posted = await discordFetch(token, `/channels/${channelId}/messages`, {
     method: 'POST',

@@ -47,6 +47,11 @@ export const PICKUP_COMMAND = {
       options: [
         { type: 7, name: 'channel', description: 'Text channel for the panel', channel_types: [0] },
         { type: 7, name: 'voice', description: 'The lobby voice channel', channel_types: [2] },
+        {
+          type: 5,
+          name: 'activity',
+          description: 'Show Launch Dashboard on the panel (the lobby inside Discord)',
+        },
       ],
     },
   ],
@@ -88,16 +93,20 @@ async function attempt(what: () => Promise<string | null>): Promise<string | nul
   }
 }
 
+/** The answer that opens the Activity for whoever pressed. */
+export const LAUNCH_ACTIVITY = Symbol('launch the Activity');
+
 /**
- * A pressed panel button. Answers with what to tell the presser alone, or
- * null when the panel itself shows the result. Not ours: undefined.
+ * A pressed panel button. Answers with what to tell the presser alone, null
+ * when the panel itself shows the result, or LAUNCH_ACTIVITY. Not ours: undefined.
  */
 export async function pickupComponentAnswer(
   interaction: Record<string, Untrusted>
-): Promise<string | null | undefined> {
+): Promise<string | null | undefined | typeof LAUNCH_ACTIVITY> {
   const data = interaction.data as { custom_id?: Untrusted; values?: Untrusted } | undefined;
   const parsed = typeof data?.custom_id === 'string' ? parseCustomId(data.custom_id) : null;
   if (!parsed) return undefined;
+  if (parsed.action === 'launch') return LAUNCH_ACTIVITY;
   const userId = userIdOf(interaction);
   const actor = userId ? await actorOf(userId) : null;
   if (!actor) return NOT_LINKED;
@@ -140,9 +149,11 @@ async function setup(permissions: string | undefined, options: Untrusted): Promi
   const opts = optionsOf(options);
   const channel = opts.find((o) => o.name === 'channel')?.value;
   const voice = opts.find((o) => o.name === 'voice')?.value;
+  const activity = opts.find((o) => o.name === 'activity')?.value;
   const saved = await setPickupDiscordSettings({
     ...(typeof channel === 'string' ? { channelId: channel } : {}),
     ...(typeof voice === 'string' ? { voiceChannelId: voice } : {}),
+    ...(typeof activity === 'boolean' ? { activity } : {}),
   });
   const lobbyId = await pickupService.openLobbyId();
   if (lobbyId) schedulePanel(lobbyId);
@@ -151,6 +162,7 @@ async function setup(permissions: string | undefined, options: Untrusted): Promi
     saved.voiceChannelId
       ? `Lobby voice channel: <#${saved.voiceChannelId}>`
       : 'Lobby voice channel: not set (nobody is moved)',
+    `Launch Dashboard on the panel: ${saved.activity ? 'on' : 'off'}`,
   ].join('\n');
 }
 

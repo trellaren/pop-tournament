@@ -3,12 +3,15 @@ import { db } from '../../../config/database';
 
 const PANEL_CHANNEL_KEY = 'pickup_discord_channel';
 const VOICE_CHANNEL_KEY = 'pickup_discord_voice';
+const ACTIVITY_KEY = 'pickup_discord_activity';
 
 export interface PickupDiscordSettings {
   /** The text channel the panel is posted in; null: no panel. */
   channelId: string | null;
   /** The voice channel players gather in; null: nobody is moved. */
   voiceChannelId: string | null;
+  /** Show Launch Dashboard on the panel: the lobby inside Discord (needs Activities enabled). */
+  activity: boolean;
 }
 
 const idOrNull = (raw: string | null): string | null =>
@@ -18,6 +21,7 @@ export async function pickupDiscordSettings(): Promise<PickupDiscordSettings> {
   return {
     channelId: idOrNull(await db.getAppSettingAsync(PANEL_CHANNEL_KEY)),
     voiceChannelId: idOrNull(await db.getAppSettingAsync(VOICE_CHANNEL_KEY)),
+    activity: (await db.getAppSettingAsync(ACTIVITY_KEY)) === '1',
   };
 }
 
@@ -29,6 +33,9 @@ export async function setPickupDiscordSettings(
   }
   if (change.voiceChannelId !== undefined) {
     await db.setAppSettingAsync(VOICE_CHANNEL_KEY, idOrNull(change.voiceChannelId));
+  }
+  if (change.activity !== undefined) {
+    await db.setAppSettingAsync(ACTIVITY_KEY, change.activity ? '1' : '0');
   }
   return pickupDiscordSettings();
 }
