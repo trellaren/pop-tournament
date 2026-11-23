@@ -331,7 +331,10 @@ Each is its own pull request into `pop`, stacked in this order.
     out of the open lobby. `GET /api/pickup/admin` and its writes, Ban on a lobby row,
     `/pickup ban` and `/pickup unban`. Not built: a host's value beside the multiplier;
     reports, the audit log and deleting an account stay the platform's own.
-13. **Admin settings and docs.** Settings → Pickup, the user guide page.
+13. **Admin settings and docs.** As built: the moderation page `/pickup/moderation`,
+    reached from the Pickup page by moderators and admins (bans with Lift and a picker to
+    ban; for site admins the moderators, and per player the multiplier and display names),
+    and the guide `docs/PICKUP.md`. The Discord settings stay in `/pickup setup`.
 
 Steps 1 to 4 give the evening as it runs today: the lobby from Discord and
 the page, teams, a match on a server with everyone on the right side and in

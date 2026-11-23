@@ -550,10 +550,12 @@ export default function PlayerProfile() {
 
             const yourTeam = normalizedMatch.team1 || null;
             const configPlayers =
-              normalizedMatch.config?.team1?.players?.map((p): TeamPlayer => ({
-                steamId: p.steamid,
-                name: p.name,
-              })) || [];
+              normalizedMatch.config?.team1?.players?.map(
+                (p): TeamPlayer => ({
+                  steamId: p.steamid,
+                  name: p.name,
+                })
+              ) || [];
 
             setCurrentTeam(
               yourTeam

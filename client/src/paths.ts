@@ -72,6 +72,8 @@ export const paths = {
   /** Pickup lobbies: a group picks its own teams (docs/design/pickup-lobby.md). */
   pickup: '/pickup',
   pickupLobby: '/pickup/:id',
+  /** Bans from pickup, moderators, balance multipliers and display names. */
+  pickupModeration: '/pickup/moderation',
   /** The pickup lobby inside Discord (the Discord Activity); signs in through Discord. */
   pickupActivity: '/activity',
   /** Your friends, friend requests, and adding friends. */

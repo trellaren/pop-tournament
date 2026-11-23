@@ -5,12 +5,12 @@
 import React from 'react';
 import { PickupServers } from '../components/pickup/PickupServers';
 import { Box, Button, Container, Typography } from '@mui/material';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Link as RouterLink, Navigate, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { TopNavBar } from '../components/layout/TopNavBar';
 import { EmptyPanel, PageHead, Panel } from '../components/common/ui';
 import { useTopic } from '../hooks/useTopic';
-import { pickupLobbyPath } from '../paths';
+import { paths, pickupLobbyPath } from '../paths';
 import { apiErrorMessage } from '../utils/api';
 import { pageTitle } from '../utils/pageTitle';
 import {
@@ -26,6 +26,7 @@ export default function Pickup() {
   const navigate = useNavigate();
   const [lobbies, setLobbies] = React.useState<PickupSummary[] | null>(null);
   const [mine, setMine] = React.useState<string | null>(null);
+  const [mayModerate, setMayModerate] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState('');
 
@@ -34,6 +35,7 @@ export default function Pickup() {
       .then((answer) => {
         setLobbies(answer.lobbies);
         setMine(answer.mine);
+        setMayModerate(answer.mayModerate === true);
       })
       .catch((err: Untrusted) => setError(apiErrorMessage(err, t('pickup.error'))));
   }, [t]);
@@ -110,6 +112,18 @@ export default function Pickup() {
           </Box>
         )}
         <PickupServers />
+        {mayModerate && (
+          <Box sx={{ mt: 3 }}>
+            <Button
+              component={RouterLink}
+              to={paths.pickupModeration}
+              size="small"
+              data-testid="pickup-moderate"
+            >
+              {t('pickup.moderate')}
+            </Button>
+          </Box>
+        )}
       </Container>
     </Box>
   );

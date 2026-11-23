@@ -1,5 +1,5 @@
 import { test, expect, request as playwrightRequest } from '@playwright/test';
-import { signInAsPlayer, signInViaRequest } from '../../helpers/auth';
+import { signIn, signInAsPlayer, signInViaRequest } from '../../helpers/auth';
 import { BASE_URL, TAGS, type PickupFixture } from './fixture';
 
 /** Moderators, bans from pickup, the multiplier and display names, end to end. */
@@ -123,6 +123,89 @@ export function moderationTests({ steamIds, contexts, view, send, open }: Pickup
       lobby = await view(0);
       expect((await send(0, { type: 'close', version: lobby.version })).ok()).toBe(true);
       await admin.dispose();
+    }
+  );
+
+  test(
+    'the moderation page: a moderator, a ban lifted, a multiplier and a name',
+    TAGS,
+    async ({ browser }) => {
+      const [, p2, p3] = steamIds;
+      const context = await browser.newContext({ baseURL: BASE_URL });
+      const page = await context.newPage();
+      expect(await signIn(page)).toBe(true);
+
+      await page.goto('/pickup');
+      await page.getByTestId('pickup-moderate').click();
+      await expect(page.getByTestId('pickup-moderation-page')).toBeVisible();
+      const pick = async (testId: string, name: string) => {
+        await page.getByTestId(testId).fill(name);
+        await page.getByRole('option', { name }).first().click();
+      };
+
+      // A moderator, made and seen by the admin.
+      await pick('pickup-mod-moderator-player', 'Pickup 2');
+      await page.getByTestId('pickup-mod-moderator-add').click();
+      await expect(page.getByTestId(`pickup-mod-moderator-${p2}`)).toBeVisible();
+
+      // The moderator sees the bans, and neither the moderators nor the multipliers.
+      const modContext = await browser.newContext({ baseURL: BASE_URL });
+      const mod = await modContext.newPage();
+      expect(await signInAsPlayer(mod, p2, 'Pickup 2')).toBe(true);
+      await mod.goto('/pickup/moderation');
+      await expect(mod.getByTestId('pickup-mod-bans')).toBeVisible();
+      await expect(mod.getByTestId('pickup-mod-moderators')).toHaveCount(0);
+      await expect(mod.getByTestId('pickup-mod-players')).toHaveCount(0);
+
+      // The moderator bans; the ban shows with its reason, and is lifted.
+      await mod.getByTestId('pickup-mod-ban-player').fill('Pickup 3');
+      await mod.getByRole('option', { name: 'Pickup 3' }).first().click();
+      await mod.getByTestId('pickup-mod-ban').click();
+      await mod.getByTestId('pickup-ban-reason').fill('page reason');
+      await mod.getByTestId('pickup-ban-confirm').click();
+      await expect(mod.getByTestId(`pickup-mod-banned-${p3}`)).toContainText('page reason');
+      await mod.getByTestId(`pickup-mod-lift-${p3}`).click();
+      await expect(mod.getByTestId(`pickup-mod-banned-${p3}`)).toHaveCount(0);
+      await modContext.close();
+
+      // Someone who is neither is told so.
+      const otherContext = await browser.newContext({ baseURL: BASE_URL });
+      const other = await otherContext.newPage();
+      expect(await signInAsPlayer(other, p3, 'Pickup 3')).toBe(true);
+      await other.goto('/pickup');
+      await expect(other.getByTestId('pickup-page')).toBeVisible();
+      await expect(other.getByTestId('pickup-moderate')).toHaveCount(0);
+      await other.goto('/pickup/moderation');
+      await expect(other.getByText('For moderators')).toBeVisible();
+      await otherContext.close();
+
+      // A multiplier and display names, saved and cleared.
+      await page.reload();
+      await pick('pickup-mod-setting-player', 'Pickup 3');
+      const row = page.getByTestId(`pickup-mod-player-${p3}`);
+      await row.getByTestId('pickup-mod-multiplier').fill('0.6');
+      await row.getByTestId('pickup-mod-names').fill('Scribbles, Scrabble');
+      await row.getByTestId('pickup-mod-player-save').click();
+      await expect
+        .poll(async () => {
+          const body = (await (await page.request.get('/api/pickup/admin')).json()) as {
+            players: Array<{ playerId: string; multiplier: number | null; displayNames: string[] }>;
+          };
+          return body.players.find((player) => player.playerId === p3) ?? null;
+        })
+        .toEqual(
+          expect.objectContaining({ multiplier: 0.6, displayNames: ['Scribbles', 'Scrabble'] })
+        );
+      await page
+        .getByTestId(`pickup-mod-player-${p3}`)
+        .getByTestId('pickup-mod-player-clear')
+        .click();
+      await expect(page.getByTestId(`pickup-mod-player-${p3}`)).toHaveCount(0);
+
+      // And the moderator is one no longer.
+      await page.getByTestId(`pickup-mod-moderator-${p2}`).locator('svg').click();
+      await expect(page.getByTestId(`pickup-mod-moderator-${p2}`)).toHaveCount(0);
+      await context.close();
     }
   );
 }

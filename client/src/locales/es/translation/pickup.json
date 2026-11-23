@@ -298,6 +298,31 @@
       "reasonHint": "Only moderators see this.",
       "cancel": "Cancel",
       "confirm": "Ban"
+    },
+    "moderate": "Moderation",
+    "moderation": {
+      "title": "Pickup moderation",
+      "back": "Back to pickup",
+      "refused": "For moderators",
+      "refusedHint": "Only pickup moderators and admins can open this page.",
+      "player": "Player",
+      "save": "Save",
+      "clear": "Clear",
+      "bans": "Bans from pickup",
+      "bansHint": "A banned player cannot open or join a pickup lobby. They are told until when, never why.",
+      "noBans": "Nobody is banned from pickup.",
+      "untilLifted": "Until lifted",
+      "until": "Until {{when}}",
+      "lift": "Lift",
+      "moderators": "Moderators",
+      "moderatorsHint": "A moderator runs any pickup lobby as its host does and bans from pickup. Admins already can.",
+      "noModerators": "No moderators yet.",
+      "addModerator": "Make moderator",
+      "players": "Balance and display names",
+      "playersHint": "The multiplier (0.1 to 1) weighs a player's rating when teams are balanced; only admins see it. Display names, separated by commas, are shown in pickup lobbies in place of the player's own name.",
+      "noPlayers": "Nothing is set for any player.",
+      "multiplier": "Multiplier",
+      "displayNames": "Display names"
     }
   }
 }
