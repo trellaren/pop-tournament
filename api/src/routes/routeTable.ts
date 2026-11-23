@@ -64,6 +64,7 @@ import webhookRoutes from './webhooks';
 import integrationTeamRoutes from './integrationTeams';
 import experimentalRoutes from './experimental';
 import matchmakingRoutes from './matchmaking';
+import pickupRoutes from './pickup';
 import leaderboardRoutes from './leaderboard';
 import socialRoutes from './social';
 import addonRoutes from './addons';
@@ -374,6 +375,13 @@ const coreRoutes: MountedRouter[] = [
     title: 'Matchmaking',
     description:
       'Parties, the queue, matches and the matchmaking leaderboard (docs/design/matchmaking.md). On by default for signed-in players; an admin can limit it to admins.',
+  },
+  {
+    prefix: '/api/pickup',
+    router: pickupRoutes,
+    title: 'Pickup',
+    description:
+      'Pickup lobbies (docs/design/pickup-lobby.md): a group picks its own teams by choosing sides, scrambling or balancing. For signed-in players; writes must be same-site JSON.',
   },
   {
     prefix: '/api/test',

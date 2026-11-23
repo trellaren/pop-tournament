@@ -728,6 +728,10 @@
       "description": "A matchmaking party's CS2 results per map (its members' results added up), and the Active Duty maps."
     },
     {
+      "name": "Pickup",
+      "description": "Pickup lobbies (docs/design/pickup-lobby.md): a group picks its own teams by choosing sides, scrambling or balancing. For signed-in players; writes must be same-site JSON."
+    },
+    {
       "name": "Player profile",
       "description": "A player's CS2 totals, everyone's totals to compare with, and their results per map."
     },
@@ -13929,6 +13933,126 @@
           },
           "404": {
             "description": "No such pack, or it has no tile"
+          }
+        }
+      }
+    },
+    "/api/pickup": {
+      "get": {
+        "tags": [
+          "Pickup"
+        ],
+        "summary": "Open pickup lobbies",
+        "description": "The lobbies that are open, and the one the signed-in player is in.",
+        "responses": {
+          "200": {
+            "description": "The open lobbies"
+          },
+          "401": {
+            "description": "Not signed in"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Pickup"
+        ],
+        "summary": "Open a pickup lobby",
+        "description": "Opens a lobby with the signed-in player as its host, seated on Team A.\nRefused with 409 `lobby_exists` while one is open, or `in_other_lobby`.\n",
+        "responses": {
+          "200": {
+            "description": "The new lobby's id"
+          },
+          "409": {
+            "description": "A lobby is already open"
+          }
+        }
+      }
+    },
+    "/api/pickup/{id}": {
+      "get": {
+        "tags": [
+          "Pickup"
+        ],
+        "summary": "One pickup lobby",
+        "description": "Both teams, the waiting room, the settings, the log, and what the\nsigned-in player may do (`can`).\n",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The lobby"
+          },
+          "404": {
+            "description": "No such lobby"
+          }
+        }
+      }
+    },
+    "/api/pickup/{id}/commands": {
+      "post": {
+        "tags": [
+          "Pickup"
+        ],
+        "summary": "Act in a pickup lobby",
+        "description": "One command per request: `join` (`side`: `a`, `b` or null for the\nwaiting room), `leave`, and for the host or an admin `move`\n(`playerId`, `side`), `kick` (`playerId`), `make_host` (`playerId`),\n`scramble`, `balance`, `lock_teams` (`locked`), `set_settings`\n(`teamSize`) and `close`. `scramble`, `balance` and `close` must send\nthe lobby's `version`; a stale one is refused with 409 `stale`.\nRefusals are 409 with a `code` (403 `not_allowed`).\n",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string"
+                  },
+                  "version": {
+                    "type": "integer"
+                  },
+                  "side": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "playerId": {
+                    "type": "string"
+                  },
+                  "locked": {
+                    "type": "boolean"
+                  },
+                  "teamSize": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done"
+          },
+          "409": {
+            "description": "Refused, with a code"
           }
         }
       }

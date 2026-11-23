@@ -1332,6 +1332,43 @@ export function getSchemaSQL(): string {
       UNIQUE (player_id, match_slug)
     );
 
+    -- Pickup lobbies (docs/design/pickup-lobby.md): a group picks its own
+    -- teams. One open lobby per game and mode.
+    CREATE TABLE IF NOT EXISTS pickup_lobbies (
+      id TEXT PRIMARY KEY,
+      game TEXT NOT NULL DEFAULT 'cs2',
+      mode TEXT NOT NULL DEFAULT '5v5',
+      state TEXT NOT NULL, -- 'gathering' | 'closed'
+      host_id TEXT NOT NULL,
+      version INTEGER NOT NULL DEFAULT 1, -- goes up by one with every change
+      settings TEXT NOT NULL, -- JSON { teamSize }
+      teams_locked BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at INTEGER NOT NULL,
+      closed_at INTEGER
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_pickup_lobbies_open ON pickup_lobbies(game, mode) WHERE state <> 'closed';
+
+    CREATE TABLE IF NOT EXISTS pickup_lobby_players (
+      lobby_id TEXT NOT NULL REFERENCES pickup_lobbies(id) ON DELETE CASCADE,
+      player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+      side TEXT, -- 'a' | 'b'; NULL in the waiting room
+      joined_at INTEGER NOT NULL,
+      waiting_since INTEGER, -- NULL while seated
+      PRIMARY KEY (lobby_id, player_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_pickup_lobby_players_player ON pickup_lobby_players(player_id);
+
+    -- The lobby log.
+    CREATE TABLE IF NOT EXISTS pickup_events (
+      id SERIAL PRIMARY KEY,
+      lobby_id TEXT NOT NULL REFERENCES pickup_lobbies(id) ON DELETE CASCADE,
+      type TEXT NOT NULL,
+      actor_id TEXT NOT NULL,
+      data TEXT NOT NULL, -- JSON
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_pickup_events_lobby ON pickup_events(lobby_id, id);
+
     -- XP (matchmaking only, decided 2026-10-05) as a ledger, so where it came
     -- from can be seen and corrected. reason: 'completed' | 'win' | 'draw' |
     -- 'performance' | 'first_win' | 'admin'.

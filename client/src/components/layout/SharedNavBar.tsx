@@ -212,6 +212,16 @@ export const SharedNavBar: React.FC<SharedNavBarProps> = ({ adminArea = false })
     ...(matchmakingAvailable
       ? [{ to: paths.play, label: t('nav.play'), testId: 'nav-play', current: at(paths.play) }]
       : []),
+    ...(playerSteamId
+      ? [
+          {
+            to: paths.pickup,
+            label: t('pickup.nav'),
+            testId: 'nav-pickup',
+            current: at(paths.pickup),
+          },
+        ]
+      : []),
     {
       to: paths.tournamentList,
       label: t('nav.tournaments'),
