@@ -1378,6 +1378,20 @@ export function getSchemaSQL(): string {
       ended_at INTEGER
     );
 
+    -- The Discord add-on's panel message of a lobby, and a match's two team voice channels.
+    CREATE TABLE IF NOT EXISTS pickup_discord_panels (
+      lobby_id TEXT PRIMARY KEY REFERENCES pickup_lobbies(id) ON DELETE CASCADE,
+      channel_id TEXT NOT NULL,
+      message_id TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS pickup_discord_voice (
+      match_slug TEXT PRIMARY KEY,
+      lobby_channel_id TEXT NOT NULL, -- where everyone is moved back to
+      team_a_channel_id TEXT,
+      team_b_channel_id TEXT,
+      created_at INTEGER NOT NULL
+    );
+
     -- The lobby log.
     CREATE TABLE IF NOT EXISTS pickup_events (
       id SERIAL PRIMARY KEY,

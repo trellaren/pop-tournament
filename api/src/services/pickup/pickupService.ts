@@ -21,6 +21,7 @@ import {
   type SystemCommand,
 } from './rules';
 import { cancelPickupMatch, createPickupMatch, mapPoolFor } from './pickupMatch';
+import { emitPickupChange } from './pickupBus';
 import { buildList, buildView, ratingsOf, type LobbySummary, type LobbyView } from './pickupView';
 import {
   endPickupMatch,
@@ -127,6 +128,7 @@ export class PickupService {
         throw error;
       }
       log.info(`[PICKUP] lobby ${lobby.id} opened`);
+      emitPickupChange({ lobby, events: [], effects: [] });
       emitTopic(PICKUP_TOPIC);
       return lobby.id;
     });
@@ -172,6 +174,7 @@ export class PickupService {
     if (outcome.lobby.state === 'closed') log.info(`[PICKUP] lobby ${before.id} closed`);
     emitTopic(PICKUP_TOPIC);
     for (const effect of outcome.effects) await this.run(outcome.lobby, effect, now);
+    emitPickupChange({ lobby: outcome.lobby, events: outcome.events, effects: outcome.effects });
   }
 
   private async run(lobby: Lobby, effect: Effect, now: number): Promise<void> {
@@ -280,6 +283,12 @@ export class PickupService {
       if (current && current.state !== 'closed') out.push(current);
     }
     return out;
+  }
+
+  /** The open lobby, if one is: there is at most one. */
+  async openLobbyId(): Promise<string | null> {
+    const open = await this.locked(() => this.openLobbies());
+    return open[0]?.id ?? null;
   }
 
   /** The lobby as one viewer sees it. */

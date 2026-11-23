@@ -17,6 +17,7 @@ import { botToken, pickedGuildId } from './bot';
 import { discordFetch } from './rest';
 import { verifyDiscordSignature } from './interactionVerify';
 import { callToLobby, LobbyCallError } from './lobbyCall';
+import { PICKUP_COMMAND, pickupCommandAnswer, pickupComponentAnswer } from './pickup/interact';
 
 const ADMINISTRATOR = 1n << 3n;
 const MOVE_MEMBERS = 1n << 24n;
@@ -39,6 +40,7 @@ const COMMANDS = [
       },
     ],
   },
+  PICKUP_COMMAND,
 ];
 
 const EPHEMERAL = 64;
@@ -165,6 +167,7 @@ async function commandAnswer(interaction: Record<string, Untrusted>): Promise<st
   try {
     if (data?.name === 'matches') return await matchesNow();
     if (data?.name === 'mymatch' && user?.id) return await myMatch(user.id);
+    if (data?.name === 'pickup') return await pickupCommandAnswer(interaction);
     if (data?.name === 'lobby') {
       return await lobbyCommand(
         member?.permissions,
@@ -181,6 +184,29 @@ async function commandAnswer(interaction: Record<string, Untrusted>): Promise<st
   }
 }
 
+/** 6: acknowledge a button with nothing said; 4: answer the presser alone. */
+function componentReply(text: string | null) {
+  if (text === null) return { type: 6 };
+  return {
+    type: 4,
+    data: { content: text.slice(0, 2000), flags: EPHEMERAL, allowed_mentions: { parse: [] } },
+  };
+}
+
+/** A pressed button that came over the gateway: the pickup panel's (pickup/interact.ts). */
+async function handleGatewayComponent(interaction: Record<string, Untrusted>): Promise<void> {
+  const token = await botToken();
+  const id = typeof interaction.id === 'string' ? interaction.id : null;
+  const answerToken = typeof interaction.token === 'string' ? interaction.token : null;
+  if (!token || !id || !answerToken) return;
+  const answer = await pickupComponentAnswer(interaction);
+  if (answer === undefined) return;
+  await discordFetch(token, `/interactions/${id}/${answerToken}/callback`, {
+    method: 'POST',
+    body: componentReply(answer),
+  });
+}
+
 /**
  * A slash command that came over the gateway (presence.ts), which Discord uses
  * when no Interactions Endpoint URL is set: no public address needed. Answered
@@ -189,6 +215,7 @@ async function commandAnswer(interaction: Record<string, Untrusted>): Promise<st
 export async function handleGatewayInteraction(
   interaction: Record<string, Untrusted>
 ): Promise<void> {
+  if (interaction.type === 3) return handleGatewayComponent(interaction);
   if (interaction.type !== 2) return;
   const token = await botToken();
   const info = token ? await appInfo(token) : null;
@@ -228,6 +255,10 @@ export async function handleInteraction(req: Request, res: Response): Promise<Re
   }
   // 1: Discord checking the endpoint.
   if (interaction.type === 1) return res.json({ type: 1 });
+  if (interaction.type === 3) {
+    const answer = await pickupComponentAnswer(interaction);
+    return res.json(componentReply(answer ?? null));
+  }
   const content = await commandAnswer(interaction);
   // 4: answer now; only the asker sees it.
   return res.json({

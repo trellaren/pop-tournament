@@ -386,3 +386,21 @@ export async function lobbyTouchedAt(id: string): Promise<number | null> {
   );
   return row?.at == null ? null : Number(row.at);
 }
+
+/** Who played a lobby's match, by side. */
+export async function loadMatchRoster(slug: string): Promise<{ a: string[]; b: string[] } | null> {
+  const row = await db.queryOneAsync<{ team_a: string; team_b: string }>(
+    'SELECT team_a, team_b FROM pickup_matches WHERE match_slug = ?',
+    [slug]
+  );
+  if (!row) return null;
+  const list = (raw: string): string[] => {
+    try {
+      const parsed: Untrusted = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string') : [];
+    } catch {
+      return [];
+    }
+  };
+  return { a: list(row.team_a), b: list(row.team_b) };
+}

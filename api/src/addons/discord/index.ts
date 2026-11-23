@@ -18,6 +18,7 @@ import {
 } from './teamChannels';
 import { resolveViewerAccount } from '../../utils/viewerIdentity';
 import { handleInteraction, inviteUrl, registerCommands } from './interactions';
+import { startPickupDiscord, stopPickupDiscord } from './pickup';
 import { currentView, refreshView, startPermissionCheck, stopPermissionCheck } from './view';
 import { serverInvite } from './serverInvite';
 import { noticeFor } from './playerNotice';
@@ -280,6 +281,7 @@ export const discordAddon: AddonModule = {
     startLobbyInvites();
     startPresence();
     startPermissionCheck();
+    startPickupDiscord();
     void registerCommands();
   },
   stop() {
@@ -290,6 +292,7 @@ export const discordAddon: AddonModule = {
     stopLobbyInvites();
     stopPresence();
     stopPermissionCheck();
+    stopPickupDiscord();
   },
   router,
 };
