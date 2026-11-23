@@ -13951,7 +13951,7 @@
           "Pickup"
         ],
         "summary": "Open pickup lobbies",
-        "description": "The lobbies that are open, and the one the signed-in player is in.",
+        "description": "The lobbies that are open, the one the signed-in player is in, and\n`mayModerate` for a pickup moderator or an admin.\n",
         "responses": {
           "200": {
             "description": "The open lobbies"

@@ -17,7 +17,9 @@ const router = Router();
  *   get:
  *     tags: [Pickup]
  *     summary: Open pickup lobbies
- *     description: The lobbies that are open, and the one the signed-in player is in.
+ *     description: |
+ *       The lobbies that are open, the one the signed-in player is in, and
+ *       `mayModerate` for a pickup moderator or an admin.
  *     responses:
  *       200:
  *         description: The open lobbies
@@ -28,7 +30,12 @@ router.get(
   '/',
   requirePlayer,
   handle('list the lobbies', async (req, res) => {
-    return res.json({ success: true, ...(await pickupService.list(actorOf(req))) });
+    const viewer = actorOf(req);
+    return res.json({
+      success: true,
+      ...(await pickupService.list(viewer)),
+      mayModerate: viewer.isAdmin,
+    });
   })
 );
 

@@ -57,11 +57,22 @@ const AdminTools: React.FC = () => {
 
   return (
     <Box sx={{ width: '100%', height: '100%' }} data-testid="admin-tools-page">
-      <PageHead title={t('layout.pageTitle.adminTools')} subtitle={t('adminToolsPage.description')} />
+      <PageHead
+        title={t('layout.pageTitle.adminTools')}
+        subtitle={t('adminToolsPage.description')}
+      />
 
       {/* Match recovery */}
-      <Box component="section" data-testid="admin-tools-recovery" aria-labelledby="admin-tools-recovery-heading">
-        <SectionHead id="admin-tools-recovery-heading" title={t('adminToolsPage.recovery.title')} sx={{ mb: 1 }} />
+      <Box
+        component="section"
+        data-testid="admin-tools-recovery"
+        aria-labelledby="admin-tools-recovery-heading"
+      >
+        <SectionHead
+          id="admin-tools-recovery-heading"
+          title={t('adminToolsPage.recovery.title')}
+          sx={{ mb: 1 }}
+        />
         <Typography variant="body2" color="text.secondary" mb={2}>
           {t('adminToolsPage.recovery.description')}
         </Typography>
@@ -71,7 +82,12 @@ const AdminTools: React.FC = () => {
       </Box>
 
       {/* Logs */}
-      <Box component="section" mt={6} data-testid="admin-tools-logs" aria-labelledby="admin-tools-logs-heading">
+      <Box
+        component="section"
+        mt={6}
+        data-testid="admin-tools-logs"
+        aria-labelledby="admin-tools-logs-heading"
+      >
         <SectionHead id="admin-tools-logs-heading" title={t('adminToolsPage.monitoring.title')} />
         <Accordion>
           <AccordionSummary expandIcon={<CaretDownIcon />}>

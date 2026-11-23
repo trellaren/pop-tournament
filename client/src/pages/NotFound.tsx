@@ -27,18 +27,10 @@ export default function NotFound() {
               {t('notFound.description')}
             </Typography>
             <Box display="flex" justifyContent="center" gap={2} flexWrap="wrap">
-              <Button
-                variant="contained"
-                color="primary"
-                onClick={() => navigate('/')}
-              >
+              <Button variant="contained" color="primary" onClick={() => navigate('/')}>
                 {t('notFound.backToDashboard')}
               </Button>
-              <Button
-                variant="outlined"
-                color="primary"
-                onClick={() => navigate('/player')}
-              >
+              <Button variant="outlined" color="primary" onClick={() => navigate('/player')}>
                 {t('notFound.publicPlayerSearch')}
               </Button>
             </Box>
@@ -48,5 +40,3 @@ export default function NotFound() {
     </Box>
   );
 }
-
-

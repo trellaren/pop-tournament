@@ -167,7 +167,11 @@ export type PickupCommand =
 
 export const PICKUP_TOPIC = 'pickup';
 
-export function listPickupLobbies(): Promise<{ lobbies: PickupSummary[]; mine: string | null }> {
+export function listPickupLobbies(): Promise<{
+  lobbies: PickupSummary[];
+  mine: string | null;
+  mayModerate?: boolean;
+}> {
   return api.get('/api/pickup');
 }
 

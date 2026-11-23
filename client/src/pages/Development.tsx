@@ -200,9 +200,7 @@ const Development: React.FC = () => {
     } catch (error) {
       console.error('Error creating test servers:', error);
       const errorMessage =
-        error instanceof Error
-          ? error.message
-          : t('devToolsPage.testServers.errors.create');
+        error instanceof Error ? error.message : t('devToolsPage.testServers.errors.create');
       showError(errorMessage);
     } finally {
       setLoading(false);
@@ -275,9 +273,7 @@ const Development: React.FC = () => {
     } catch (error) {
       console.error('Error creating test players:', error);
       const errorMessage =
-        error instanceof Error
-          ? error.message
-          : t('devToolsPage.testPlayers.errors.create');
+        error instanceof Error ? error.message : t('devToolsPage.testPlayers.errors.create');
       showError(errorMessage);
     } finally {
       setLoading(false);
@@ -343,9 +339,7 @@ const Development: React.FC = () => {
       const response: { success: boolean; message: string } = await api.post(
         '/api/tournament/wipe-database'
       );
-      showSuccess(
-        response.message || t('devToolsPage.wipeDatabase.successRedirect')
-      );
+      showSuccess(response.message || t('devToolsPage.wipeDatabase.successRedirect'));
 
       // Refresh page after 2 seconds
       setTimeout(() => {
@@ -374,10 +368,7 @@ const Development: React.FC = () => {
       const response: { success: boolean; message: string } = await api.post(
         `/api/tournament/wipe-table/${table}`
       );
-      showSuccess(
-        response.message ||
-          t('devToolsPage.wipeTable.success', { table })
-      );
+      showSuccess(response.message || t('devToolsPage.wipeTable.success', { table }));
     } catch (error) {
       console.error(`Error wiping ${table}:`, error);
       showError(t('devToolsPage.wipeTable.error', { table }));
@@ -393,13 +384,9 @@ const Development: React.FC = () => {
         '/api/tournament/dev/reset-simulation-state'
       );
       if (response.success) {
-        showSuccess(
-          response.message || t('devToolsPage.simulation.reset.success')
-        );
+        showSuccess(response.message || t('devToolsPage.simulation.reset.success'));
       } else {
-        showError(
-          response.error || t('devToolsPage.simulation.reset.error')
-        );
+        showError(response.error || t('devToolsPage.simulation.reset.error'));
       }
     } catch (error) {
       console.error('Error resetting simulation state:', error);
@@ -492,9 +479,7 @@ const Development: React.FC = () => {
                     label={t('devToolsPage.testTeams.customLabel')}
                     size="small"
                     value={customTeamCount}
-                    onChange={(e) =>
-                      setCustomTeamCount(Math.max(1, Number(e.target.value) || 0))
-                    }
+                    onChange={(e) => setCustomTeamCount(Math.max(1, Number(e.target.value) || 0))}
                     disabled={loading}
                     fullWidth
                     slotProps={{
@@ -586,9 +571,7 @@ const Development: React.FC = () => {
                     label={t('devToolsPage.testPlayers.customLabel')}
                     size="small"
                     value={customPlayerCount}
-                    onChange={(e) =>
-                      setCustomPlayerCount(Math.max(1, Number(e.target.value) || 0))
-                    }
+                    onChange={(e) => setCustomPlayerCount(Math.max(1, Number(e.target.value) || 0))}
                     disabled={loading}
                     fullWidth
                     slotProps={{
@@ -682,9 +665,7 @@ const Development: React.FC = () => {
                     label={t('devToolsPage.testServers.customLabel')}
                     size="small"
                     value={customServerCount}
-                    onChange={(e) =>
-                      setCustomServerCount(Math.max(1, Number(e.target.value) || 0))
-                    }
+                    onChange={(e) => setCustomServerCount(Math.max(1, Number(e.target.value) || 0))}
                     disabled={loading}
                     fullWidth
                     slotProps={{
@@ -757,9 +738,7 @@ const Development: React.FC = () => {
                 <AccordionSummary expandIcon={<CaretDownIcon />}>
                   <Box display="flex" alignItems="center" gap={1}>
                     <HardDrivesIcon />
-                    <Typography fontWeight={600}>
-                      {t('devToolsPage.wipeTable.title')}
-                    </Typography>
+                    <Typography fontWeight={600}>{t('devToolsPage.wipeTable.title')}</Typography>
                   </Box>
                 </AccordionSummary>
                 <AccordionDetails>
@@ -1011,9 +990,7 @@ const Development: React.FC = () => {
                 <AccordionSummary expandIcon={<CaretDownIcon />}>
                   <Box display="flex" alignItems="center" gap={1}>
                     <TrashIcon />
-                    <Typography fontWeight={600}>
-                      {t('devToolsPage.wipeDatabase.title')}
-                    </Typography>
+                    <Typography fontWeight={600}>{t('devToolsPage.wipeDatabase.title')}</Typography>
                   </Box>
                 </AccordionSummary>
                 <AccordionDetails>

@@ -148,7 +148,11 @@ export default function WelcomeGames() {
 
   const toggleSelect = (game: GameSummary) => {
     setSelected((prev) =>
-      prev.some((g) => g.id === game.id) ? prev.filter((g) => g.id !== game.id) : atLimit ? prev : [...prev, game]
+      prev.some((g) => g.id === game.id)
+        ? prev.filter((g) => g.id !== game.id)
+        : atLimit
+          ? prev
+          : [...prev, game]
     );
   };
 
@@ -158,7 +162,8 @@ export default function WelcomeGames() {
     setInput('');
   };
 
-  const removeSelected = (game: GameSummary) => setSelected((prev) => prev.filter((g) => g.id !== game.id));
+  const removeSelected = (game: GameSummary) =>
+    setSelected((prev) => prev.filter((g) => g.id !== game.id));
 
   // Keep the newest pick in view: the selected strip is one scrolling row, so
   // a game added from the search would otherwise land past its right edge.
@@ -209,7 +214,8 @@ export default function WelcomeGames() {
 
   // A game found back when IGDB search still existed (`source === 'igdb'`)
   // is credited to Wikidata too — that is the only external source left.
-  const showCredit = fromWikidata || gridGames.some((g) => g.source === 'wikidata' || g.source === 'igdb');
+  const showCredit =
+    fromWikidata || gridGames.some((g) => g.source === 'wikidata' || g.source === 'igdb');
 
   const noOptionsText = tooShort
     ? t('games.picker.minChars')
@@ -221,7 +227,11 @@ export default function WelcomeGames() {
     // Bottom padding clears the fixed bar: two rows under `md`, one above.
     <Box minHeight="100vh" bgcolor="transparent" sx={{ pb: { xs: 18, md: 12 } }}>
       <TopNavBar />
-      <Container maxWidth="lg" sx={{ pt: { xs: 3, md: 6 }, pb: 4 }} data-testid="welcome-games-page">
+      <Container
+        maxWidth="lg"
+        sx={{ pt: { xs: 3, md: 6 }, pb: 4 }}
+        data-testid="welcome-games-page"
+      >
         <Box component="header" sx={{ maxWidth: 640 }}>
           <Typography
             component="h1"
@@ -288,7 +298,12 @@ export default function WelcomeGames() {
                     >
                       <GameArt game={game} compact />
                     </Box>
-                    <Typography variant="body2" fontWeight={500} noWrap sx={{ minWidth: 0, flex: 1 }}>
+                    <Typography
+                      variant="body2"
+                      fontWeight={500}
+                      noWrap
+                      sx={{ minWidth: 0, flex: 1 }}
+                    >
                       {game.name}
                     </Typography>
                     {game.releaseYear && (
@@ -298,7 +313,13 @@ export default function WelcomeGames() {
                     )}
                     {game.supported && (
                       <Tooltip title={supportedLabel}>
-                        <Box component={TrophyIcon} size={18} role="img" aria-label={supportedLabel} sx={{ color: 'primary.main', flexShrink: 0 }} />
+                        <Box
+                          component={TrophyIcon}
+                          size={18}
+                          role="img"
+                          aria-label={supportedLabel}
+                          sx={{ color: 'primary.main', flexShrink: 0 }}
+                        />
                       </Tooltip>
                     )}
                   </Box>
@@ -309,7 +330,9 @@ export default function WelcomeGames() {
                   {...params}
                   placeholder={t('games.picker.searchLabel')}
                   autoFocus
-                  helperText={atLimit ? t('games.picker.limit', { max: MAX_PLAYER_GAMES }) : undefined}
+                  helperText={
+                    atLimit ? t('games.picker.limit', { max: MAX_PLAYER_GAMES }) : undefined
+                  }
                   sx={{
                     '& .MuiOutlinedInput-root': {
                       borderRadius: `${radius.pill}px`,
@@ -340,7 +363,6 @@ export default function WelcomeGames() {
                 />
               )}
             />
-
           </Box>
         </Box>
 
@@ -356,10 +378,18 @@ export default function WelcomeGames() {
             }}
             data-testid="welcome-games-instance"
           >
-            <Typography component="h2" variant="h6" sx={{ fontFamily: fontDisplay, fontWeight: 600 }}>
+            <Typography
+              component="h2"
+              variant="h6"
+              sx={{ fontFamily: fontDisplay, fontWeight: 600 }}
+            >
               {t('catalog.welcome.title')}
             </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, mb: 2, maxWidth: '64ch' }}>
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              sx={{ mt: 0.5, mb: 2, maxWidth: '64ch' }}
+            >
               {t('catalog.welcome.hint')}
             </Typography>
             <GameCatalog showBuiltins onChanged={refreshPopular} />
@@ -414,7 +444,12 @@ export default function WelcomeGames() {
                 <Box key={i} aria-hidden>
                   <Skeleton
                     variant="rounded"
-                    sx={{ width: '100%', height: 'auto', aspectRatio: '3 / 4', borderRadius: `${radius.md}px` }}
+                    sx={{
+                      width: '100%',
+                      height: 'auto',
+                      aspectRatio: '3 / 4',
+                      borderRadius: `${radius.md}px`,
+                    }}
                   />
                   <Skeleton variant="text" sx={{ mt: 1, width: '70%' }} />
                 </Box>
@@ -431,7 +466,12 @@ export default function WelcomeGames() {
         </Box>
 
         {showCredit && (
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 3 }} data-testid="wikidata-credit">
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            sx={{ display: 'block', mt: 3 }}
+            data-testid="wikidata-credit"
+          >
             <ExternalLink
               href="https://www.wikidata.org"
               color="inherit"
@@ -523,7 +563,12 @@ export default function WelcomeGames() {
                     data-testid={`welcome-games-chip-${game.slug}`}
                     sx={{
                       flexShrink: 0,
-                      '& .MuiChip-label': { display: 'flex', alignItems: 'center', pl: 0.5, pr: 0.25 },
+                      '& .MuiChip-label': {
+                        display: 'flex',
+                        alignItems: 'center',
+                        pl: 0.5,
+                        pr: 0.25,
+                      },
                     }}
                   />
                 </Tooltip>
@@ -531,9 +576,22 @@ export default function WelcomeGames() {
             )}
           </Box>
 
-          <Box sx={{ order: 3, ml: 'auto', display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
+          <Box
+            sx={{
+              order: 3,
+              ml: 'auto',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              flexShrink: 0,
+            }}
+          >
             {!isEdit && (
-              <Button onClick={() => void skip()} disabled={busy !== null} data-testid="welcome-games-not-now">
+              <Button
+                onClick={() => void skip()}
+                disabled={busy !== null}
+                data-testid="welcome-games-not-now"
+              >
                 {t('games.welcome.notNow')}
               </Button>
             )}
@@ -541,7 +599,9 @@ export default function WelcomeGames() {
               variant="contained"
               onClick={() => void save()}
               disabled={busy !== null || selected.length === 0}
-              startIcon={busy === 'save' ? <CircularProgress size={16} color="inherit" /> : undefined}
+              startIcon={
+                busy === 'save' ? <CircularProgress size={16} color="inherit" /> : undefined
+              }
               data-testid="welcome-games-continue"
               sx={{ borderRadius: `${radius.pill}px`, px: 3.5 }}
             >

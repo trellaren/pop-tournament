@@ -48,7 +48,12 @@ export default function ForgotPassword() {
           <Alert severity="info" data-testid="forgot-no-email">
             {t('forgotPassword.noEmail')}
           </Alert>
-          <Link component={RouterLink} to={paths.adminLogin} variant="body2" sx={{ textAlign: 'center' }}>
+          <Link
+            component={RouterLink}
+            to={paths.adminLogin}
+            variant="body2"
+            sx={{ textAlign: 'center' }}
+          >
             {t('forgotPassword.back')}
           </Link>
         </Stack>
