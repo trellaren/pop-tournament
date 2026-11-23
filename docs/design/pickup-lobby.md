@@ -196,29 +196,52 @@ Two small changes outside pickup's own folders:
    (`api/src/core/matchChangeBus.ts`), which returns the lobby to gathering.
 
 The veto's turn timer and vote run only for tournament and matchmaking
-matches today (`integrations/cs2/veto/vote.ts`); step 3 extends that check to
+matches today (`integrations/cs2/veto/vote.ts`); step 6 extends that check to
 `pickup`.
 
 ## Discord
 
-The Discord add-on today posts link buttons, moves only tournament teams
-between voice channels, and has no embedded Activity. Pickup adds, in
-`api/src/addons/discord/pickup/`:
+Everything the poop_flash bot and its Activity do is kept. The platform's
+Discord add-on today posts link buttons, moves only tournament teams between
+voice channels, takes slash commands over its Gateway connection and has no
+embedded Activity, so pickup adds the rest in `api/src/addons/discord/pickup/`:
 
-- **A lobby card** in a channel an admin picks: who is on each side, who is
-  waiting, the state, and a link button to the lobby page. Edited as the
-  lobby changes, at most once every few seconds.
-- **Voice channels.** At Start the bot makes `Pickup A` and `Pickup B` beside
-  the lobby's voice channel, moves each seated player with a linked Discord
-  account into their side's channel, and when the match ends moves everyone
-  back and deletes them. Reuses `teamChannels.ts` and `matchVoice.ts`.
-  Players without a linked Discord account are simply not moved; the lobby
-  page says who.
-- **Slash commands** `/pickup` (the link and who is in) and `/pickup join`.
+- **The panel.** One message per open lobby in a channel an admin picks,
+  showing each side, the waiting room, the state, the settings and the match.
+  It has working buttons and menus, as poop_flash's panel has: Join Team A,
+  Join Team B, Join waiting room, Leave, Ready, and for the host Scramble,
+  Balance teams, Pick teams, Map veto, Pick map, Lock teams, Start, Cancel,
+  Roll out, Manage players, Settings and Close; during a draft or veto, the
+  pick and ban menus; during a match, Connect, Spectate and Launch Dashboard.
+  The add-on already receives interactions over the Gateway, so a button
+  press arrives the same way a slash command does; no public interactions
+  address is needed. Each press runs the same lobby command the page runs.
+  Only one writer edits the panel, at most once every few seconds.
+- **Who pressed.** A press is from a Discord account. The player is the
+  platform account that has that Discord account verified
+  (`auth_identities`). Someone without one gets a private reply with a link to
+  sign in and connect Discord on the platform, once, for everything.
+- **Voice channels.** `/pickup setup voice` names the lobby voice channel. At
+  Start the bot makes `#<n> Team A` and `#<n> Team B` in its category, moves
+  each seated player into their side's channel, and after the match moves
+  everyone back and deletes them. Split teams and Bring everyone back by
+  hand. Built on the add-on's `teamChannels.ts` and `matchVoice.ts`.
+- **Pings and announcements.** Ready check, your pick, match ready with
+  Connect, rolled out and rolled in, as poop_flash sends them.
+- **Slash commands.** `/pickup` with the subcommands poop_flash's `/lobby`
+  and `/setup` have, where the platform has no command of its own already.
+- **The Activity.** The lobby inside Discord, launched from the panel's
+  Launch Dashboard or Discord's own launcher. It is the platform's client
+  served at `/activity`, showing the pickup pages (and links out for the
+  rest). Sign-in uses the Embedded App SDK's `authorize`; the API exchanges
+  the code, finds the platform account with that verified Discord account and
+  answers with a short-lived bearer token, because Discord's frame does not
+  carry the site's cookie. The pickup routes and the socket accept that token
+  beside the session. Needs: Activities enabled on the Discord application,
+  its root mapped to the site's address, and the site allowing Discord's
+  frame for `/activity` only.
 
-All of it is off unless the Discord add-on is on and an admin has picked the
-channels. Buttons that act (Join Team A on the card itself) and an embedded
-Activity are question 3.
+All of it is off unless the Discord add-on is on and an admin has set it up.
 
 ## Keeping the fork mergeable
 
@@ -250,29 +273,69 @@ Each is its own pull request into `pop`, stacked in this order.
 2. **Start.** Ready check, host picks the map or random, `createMatch` with
    `source = 'pickup'`, allocation, the match card with connect details, the
    result hook, cancel.
-3. **Map veto and vote.** The platform's veto between the two sides with its
-   timer; the lobby's own map vote.
-4. **Captain draft.** Captains three ways, the pick order, the timer, the
-   banner and pool.
-5. **Roll-out.** Games in a row, waiting order, the two rules, roll out by
-   hand, the idle close.
-6. **Wingman.** Format, team size, the wingman pool.
-7. **Discord.** The lobby card, voice channels and moves, `/pickup`.
-8. **Admin settings and docs.** Settings → Pickup (on or off, who may open a
-   lobby, defaults, the Discord channels), the user guide page.
+3. **Roll-out.** Games in a row, waiting order, the roll-out rules, roll out
+   by hand, the idle close.
+4. **Discord panel and voice.** The panel with its buttons and menus, who
+   pressed, the voice channels and moves, pings, `/pickup`.
+5. **Captain draft.** Captains three ways, the pick order, the timer, the
+   banner and pool, on the page and the panel.
+6. **Map veto, vote and pools.** The platform's veto between the two sides
+   with its timer; the lobby's map vote; named pools and Workshop maps.
+7. **The Activity.** `/activity`, its sign-in, the bearer token, Launch
+   Dashboard.
+8. **Wingman.**
+9. **Who can join.** Invited only, invites and invite links.
+10. **Mid-match substitution**, through the platform's roster update.
+11. **Spectators, practice and retakes**, through the platform's servers.
+12. **Moderation and roles.** What the table below marks "build".
+13. **Admin settings and docs.** Settings → Pickup, the user guide page.
 
-Steps 1 and 2 give a usable evening: one lobby, chosen or balanced teams, a
-picked map, a match on a server with everyone on the right side.
+Steps 1 to 4 give the evening as it runs today: the lobby from Discord and
+the page, teams, a match on a server with everyone on the right side and in
+the right voice channel, and roll-out afterwards.
 
-## Not carried over from poop_flash
+## Parity with poop_flash's main
 
-Dropped because the platform already has its own, or because nothing asked
-for them here: the separate sign-in and Steam link, stored roles (the platform
-has admins; the lobby has a host), bans, reports and the moderation log,
-"delete my data", the AI caster, Valve private matches, manual mode, RCON to a
-saved server, the stats reader (the platform's stats are used as they are),
-the practice and retakes switch, invite-only lobbies and mid-match
-substitution. Any of them can be a later step.
+Every feature built on poop_flash's `main` is kept. "Platform" means the
+platform's own version is used in place of ours; each of those is checked
+against what poop_flash does when its step starts, and a gap is built.
+
+| Feature on main                                           | Here                                                                                            |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Sign in through Steam, Connect Discord, Link Steam        | Platform (one sign-in for everything)                                                           |
+| Lobby: sides, waiting room, host, ready check             | Build, steps 1 and 2                                                                            |
+| Scramble, Balance teams, Lock teams, Switch side          | Build, step 1                                                                                   |
+| Captain draft (random, host's or by rating)               | Build, step 5                                                                                   |
+| Roll-out, games in a row, waiting order                   | Build, step 3                                                                                   |
+| Map veto, Pick map, Map vote                              | Platform's veto; vote and pick built, step 6                                                    |
+| Named map pools, Workshop maps                            | Platform's pools; gaps built, step 6                                                            |
+| Wingman                                                   | Platform's wingman matches; lobby format built, step 8                                          |
+| Server launch, teams on the server, map change            | Platform with Ready Up                                                                          |
+| Launch failure: Retry, Keep waiting, Start anyway         | Platform's allocation and recovery; the lobby shows the state and offers Cancel and Retry       |
+| Manual mode, Report result, Fix result                    | Build: a lobby with no free server can still play and report by hand, step 2                    |
+| Valve private match with queue code                       | Build, with step 2                                                                              |
+| Discord panel with buttons and menus                      | Build, step 4                                                                                   |
+| Voice channels per match, Split teams, Bring back         | Build on the add-on, step 4                                                                     |
+| Pings and announcements                                   | Build on the add-on, step 4                                                                     |
+| Slash commands                                            | Build under `/pickup`; platform's own where they exist                                          |
+| The Activity, Launch Dashboard                            | Build, step 7                                                                                   |
+| Lobby page: three columns, row stats, row actions, log    | Build, step 1                                                                                   |
+| Timer sound, glow on your turn                            | Build, with steps 5 and 6                                                                       |
+| Player stats, rating, leaderboard, match page, scoreboard | Platform                                                                                        |
+| The host's value and the admin-only multiplier            | Build as a per-player balance adjustment, step 12                                               |
+| Demos, GOTV watch                                         | Platform                                                                                        |
+| Spectators in the server                                  | Platform's spectator slots; lobby's Spectate built, step 11                                     |
+| Practice and retakes switch                               | Platform's server modes and plugin sets, step 11                                                |
+| Mid-match substitution                                    | Platform's roster update; lobby flow built, step 10                                             |
+| Who can join, invites, invite links                       | Build, step 9                                                                                   |
+| Roles: owner, admin, mod, host                            | Platform's admins and the lobby host; a moderator level built if the platform has none, step 12 |
+| Bans with length and reason                               | Platform's bans; a lobby-only ban built if needed, step 12                                      |
+| Reports, moderation log                                   | Platform's reports and audit log, step 12                                                       |
+| Delete my data, Forget a member                           | Platform, or built, step 12                                                                     |
+| AI caster and cast page                                   | Build on the platform's match events, after step 13 (question 3)                                |
+| Name rules (the Scraggles rule)                           | Build as an admin-set display name override, step 12                                            |
+| Members page                                              | Platform's players list                                                                         |
+| Game server setup scripts                                 | Platform's CS2 Server Manager                                                                   |
 
 ## Questions for the owner
 
@@ -280,13 +343,11 @@ substitution. Any of them can be a later step.
    "10-man", "Lobby", which collides with matchmaking's lobby.)
 2. **How many lobbies.** One open lobby per mode, or several at once?
    Recommendation: one per mode. It matches how the evenings run and keeps
-   the Discord card and voice channels simple; several is a later change to
-   one index.
-3. **Discord beyond links.** poop_flash had buttons on a panel message and an
-   embedded Activity. The platform has neither. Recommendation: step 7 as
-   written (card with a link, voice moves, slash commands), then decide on
-   acting buttons and an Activity after an evening or two. An Activity needs
-   its own sign-in path inside Discord's frame and is a large piece of work.
+   the panel and voice channels simple; several is a later change to one
+   index.
+3. **Order.** Is the step order above right? It puts roll-out and the
+   Discord panel and voice first, the Activity seventh, and the caster last.
+   Recommendation: as written; say if the Activity should come earlier.
 4. **Veto.** Use the platform's veto (the match exists first, any player on a
    side may act) or a lobby-side veto by the two captains before the match
    exists? Recommendation: the platform's, so there is one veto to maintain.
@@ -298,9 +359,9 @@ substitution. Any of them can be a later step.
    reads the rating for Balance teams and for display only.
 7. **Branches.** `main` equal to upstream and a `pop` branch for our work, as
    above? Recommendation: yes.
-8. **The scraggles name rule.** poop_flash replaced one player's display
-   name. Carry it over as an admin-set display name override?
-   Recommendation: leave it out unless asked.
+8. **Stats.** poop_flash showed HLTV rating 1.0 and ADR over the last 25
+   matches. Here the rows show the platform's rating and stats instead.
+   Recommendation: yes, the platform's.
 9. **poop_flash's `frag-flash` branch and `pop.frag.works`.** With the lobby
    inside the platform, that separate site is no longer needed for
    frag.works. Recommendation: stop work on it, leave the branch as it is,
@@ -308,6 +369,5 @@ substitution. Any of them can be a later step.
    `www.fraggit.dev`) is not affected.
 10. **Deploying.** frag.works runs upstream's published image today. The fork
     needs its own image built from `pop` and the machine's compose file
-    pointed at it. Recommendation: a step after step 2, with a short
-    checklist for the machine, so the first usable version can be tried for
-    real.
+    pointed at it. Recommendation: a step after step 4, with a short
+    checklist for the machine, so the evening can be tried for real.
