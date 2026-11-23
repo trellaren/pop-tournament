@@ -45,14 +45,21 @@
     "settings": {
       "title": "Match settings",
       "teamSize": "Team size",
-      "versus": "{{size}}v{{size}}"
+      "versus": "{{size}}v{{size}}",
+      "map": "Map",
+      "randomMap": "Random map",
+      "mapIs": "Map: {{map}}"
     },
     "controls": {
       "scramble": "Scramble",
       "balance": "Balance teams",
       "lock": "Lock teams",
       "unlock": "Unlock teams",
-      "close": "Close lobby"
+      "close": "Close lobby",
+      "start": "Start",
+      "startHint": "Both teams must be full to start.",
+      "cancelStart": "Cancel start",
+      "cancelMatch": "Cancel match"
     },
     "log": {
       "title": "Lobby log",
@@ -67,7 +74,20 @@
       "teams_locked": "{{actor}} locked the teams.",
       "teams_unlocked": "{{actor}} unlocked the teams.",
       "settings_changed": "{{actor}} set the team size to {{size}}.",
-      "closed": "The lobby was closed."
+      "closed": "The lobby was closed.",
+      "map_picked": "{{actor}} picked {{map}}.",
+      "map_random": "{{actor}} set the map to random.",
+      "ready_check": "{{actor}} started the ready check.",
+      "ready_timed_out": "The ready check ran out. Players moved to the waiting room: {{late}}.",
+      "start_cancelled": "The start was cancelled.",
+      "match_starting": "Everyone is ready. Match {{number}} is starting.",
+      "match_won": {
+        "a": "Match {{number}} is over. Team A won.",
+        "b": "Match {{number}} is over. Team B won."
+      },
+      "match_drawn": "Match {{number}} is over.",
+      "match_cancelled": "Match {{number}} was cancelled.",
+      "match_failed": "Match {{number}} could not be started."
     },
     "refusal": {
       "closed": "This lobby is closed.",
@@ -83,7 +103,30 @@
       "not_enough_players": "Seat at least two players first.",
       "lobby_exists": "A lobby is already open.",
       "in_other_lobby": "You are already in another lobby.",
-      "not_found": "This lobby does not exist."
+      "not_found": "This lobby does not exist.",
+      "wrong_state": "That cannot be done right now.",
+      "in_match": "Not while the match is running.",
+      "teams_not_full": "Both teams must be full first.",
+      "invalid_map": "That map is not in the pool."
+    },
+    "ready": {
+      "title": "Ready check",
+      "progress": "{{ready}} of {{total}} ready · {{seconds}} s left",
+      "button": "Ready",
+      "yes": "Ready",
+      "no": "Not ready"
+    },
+    "match": {
+      "title": "Match {{number}}",
+      "open": "Open match",
+      "openPlayer": "Open match and connect",
+      "status": {
+        "pending": "Waiting for a free server.",
+        "ready": "Waiting for a free server.",
+        "loaded": "The server is ready. Open the match to connect.",
+        "live": "The match is live.",
+        "completed": "The match is over."
+      }
     }
   }
 }

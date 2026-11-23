@@ -4,7 +4,15 @@
  */
 import type { PoolClient } from 'pg';
 import { db } from '../../config/database';
-import type { EventData, Lobby, LobbyEvent, LobbyPlayer, LobbySettings, Side } from './rules';
+import type {
+  EventData,
+  Lobby,
+  LobbyEvent,
+  LobbyPlayer,
+  LobbySettings,
+  LobbyState,
+  Side,
+} from './rules';
 import { DEFAULT_TEAM_SIZE, MAX_TEAM_SIZE, MIN_TEAM_SIZE } from './rules';
 import type { Untrusted } from '../../utils/untrusted';
 
@@ -20,6 +28,10 @@ interface LobbyRow {
   version: number;
   settings: string;
   teams_locked: boolean;
+  picked_map: string | null;
+  deadline_at: number | null;
+  match_count: number;
+  match_slug: string | null;
   created_at: number;
 }
 
@@ -28,6 +40,7 @@ interface PlayerRow {
   side: string | null;
   joined_at: number;
   waiting_since: number | null;
+  ready: boolean;
 }
 
 export interface StoredEvent {
@@ -81,32 +94,43 @@ function parseEventData(raw: string): EventData {
 
 const sideOf = (raw: string | null): Side | null => (raw === 'a' || raw === 'b' ? raw : null);
 
+function stateOf(raw: string): LobbyState {
+  if (raw === 'ready_check' || raw === 'in_match' || raw === 'closed') return raw;
+  return 'gathering';
+}
+
 function toPlayer(row: PlayerRow): LobbyPlayer {
   return {
     playerId: row.player_id,
     side: sideOf(row.side),
     joinedAt: Number(row.joined_at),
     waitingSince: row.waiting_since === null ? null : Number(row.waiting_since),
+    ready: Boolean(row.ready),
   };
 }
 
 function toLobby(row: LobbyRow, players: PlayerRow[]): Lobby {
   return {
     id: row.id,
-    state: row.state === 'closed' ? 'closed' : 'gathering',
+    state: stateOf(row.state),
     hostId: row.host_id,
     version: Number(row.version),
     settings: parseSettings(row.settings),
     teamsLocked: Boolean(row.teams_locked),
+    pickedMap: row.picked_map,
+    deadline: row.deadline_at === null ? null : Number(row.deadline_at),
+    matchNo: Number(row.match_count),
+    matchSlug: row.match_slug,
     players: players.map(toPlayer),
   };
 }
 
-const LOBBY_COLUMNS = 'id, state, host_id, version, settings, teams_locked, created_at';
+const LOBBY_COLUMNS =
+  'id, state, host_id, version, settings, teams_locked, picked_map, deadline_at, match_count, match_slug, created_at';
 
 async function playersOf(lobbyId: string): Promise<PlayerRow[]> {
   return db.queryAsync<PlayerRow>(
-    `SELECT player_id, side, joined_at, waiting_since
+    `SELECT player_id, side, joined_at, waiting_since, ready
        FROM pickup_lobby_players WHERE lobby_id = ? ORDER BY joined_at, player_id`,
     [lobbyId]
   );
@@ -162,9 +186,9 @@ async function writePlayersAndEvents(
   await client.query('DELETE FROM pickup_lobby_players WHERE lobby_id = $1', [lobby.id]);
   for (const p of lobby.players) {
     await client.query(
-      `INSERT INTO pickup_lobby_players (lobby_id, player_id, side, joined_at, waiting_since)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [lobby.id, p.playerId, p.side, p.joinedAt, p.waitingSince]
+      `INSERT INTO pickup_lobby_players (lobby_id, player_id, side, joined_at, waiting_since, ready)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [lobby.id, p.playerId, p.side, p.joinedAt, p.waitingSince, p.ready]
     );
   }
   for (const event of events) {
@@ -213,7 +237,8 @@ export async function saveLobby(
     const updated = await client.query(
       `UPDATE pickup_lobbies
           SET state = $1, host_id = $2, version = $3, settings = $4, teams_locked = $5,
-              closed_at = CASE WHEN $1 = 'closed' THEN $6::integer ELSE closed_at END
+              closed_at = CASE WHEN $1 = 'closed' THEN $6::integer ELSE closed_at END,
+              picked_map = $9, deadline_at = $10, match_count = $11, match_slug = $12
         WHERE id = $7 AND version = $8`,
       [
         lobby.state,
@@ -224,6 +249,10 @@ export async function saveLobby(
         now,
         lobby.id,
         fromVersion,
+        lobby.pickedMap,
+        lobby.deadline,
+        lobby.matchNo,
+        lobby.matchSlug,
       ]
     );
     if (updated.rowCount !== 1) throw new Error('Pickup lobby changed while it was being written');
@@ -264,4 +293,74 @@ export async function loadNames(playerIds: readonly string[]): Promise<Map<strin
   for (const row of rows)
     out.set(row.id, { id: row.id, name: row.name, avatarUrl: row.avatar_url });
   return out;
+}
+
+/** The open lobby whose running match is `slug`, if any. */
+export async function lobbyIdOfMatch(slug: string): Promise<string | null> {
+  const row = await db.queryOneAsync<{ id: string }>(
+    "SELECT id FROM pickup_lobbies WHERE match_slug = ? AND state = 'in_match' LIMIT 1",
+    [slug]
+  );
+  return row?.id ?? null;
+}
+
+export interface MatchState {
+  /** The platform's status of the match: pending, loaded, live, completed, cancelled… */
+  status: string;
+  map: string | null;
+  /** When the platform marked it over (epoch seconds), if it has. */
+  completedAt: number | null;
+}
+
+/** The platform's row of a match, or null when there is none. */
+export async function loadMatchState(slug: string): Promise<MatchState | null> {
+  const row = await db.queryOneAsync<{
+    status: string;
+    map: string | null;
+    completed_at: number | null;
+  }>(
+    `SELECT m.status, pm.map, m.completed_at FROM matches m
+       LEFT JOIN pickup_matches pm ON pm.match_slug = m.slug
+      WHERE m.slug = ?`,
+    [slug]
+  );
+  if (!row) return null;
+  return {
+    status: row.status,
+    map: row.map,
+    completedAt: row.completed_at === null ? null : Number(row.completed_at),
+  };
+}
+
+/** Record a lobby's match: who played on which side, and where. */
+export async function insertPickupMatch(input: {
+  lobbyId: string;
+  slug: string;
+  matchNo: number;
+  map: string;
+  teamA: readonly string[];
+  teamB: readonly string[];
+  now: number;
+}): Promise<void> {
+  await db.runAsync(
+    `INSERT INTO pickup_matches (match_slug, lobby_id, match_no, map, team_a, team_b, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [
+      input.slug,
+      input.lobbyId,
+      input.matchNo,
+      input.map,
+      JSON.stringify(input.teamA),
+      JSON.stringify(input.teamB),
+      input.now,
+    ]
+  );
+}
+
+/** How a lobby's match ended: 'a', 'b', 'draw', 'cancelled' or 'failed'. */
+export async function endPickupMatch(slug: string, result: string, now: number): Promise<void> {
+  await db.runAsync(
+    'UPDATE pickup_matches SET result = ?, ended_at = ? WHERE match_slug = ? AND result IS NULL',
+    [result, now, slug]
+  );
 }

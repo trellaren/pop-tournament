@@ -705,6 +705,21 @@ async function processSeriesEnd(
         }
       }
 
+      // A pickup lobby's match: the lobby goes back to gathering (docs/design/pickup-lobby.md).
+      if ((match as DbMatchRow & { source?: string | null }).source === 'pickup') {
+        const scoreSide = team1Score > team2Score ? 'team1' : 'team2';
+        const tied = team1Score === team2Score ? 'none' : scoreSide;
+        try {
+          const { pickupService } = await import('../services/pickup/pickupService');
+          await pickupService.applyMatchResult(
+            matchSlug,
+            winnerSide !== 'none' ? winnerSide : tied
+          );
+        } catch (error) {
+          log.error(`Could not tell the pickup lobby that ${matchSlug} ended`, error as Error);
+        }
+      }
+
       // The series is over here too: free the resource (CS2: a Ready Up
       // server is unassigned; the RCON plugin resets itself either way).
       await releaseMatch(match);

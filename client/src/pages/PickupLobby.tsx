@@ -14,6 +14,7 @@ import { apiErrorMessage } from '../utils/api';
 import { pageTitle } from '../utils/pageTitle';
 import { PickupControls } from '../components/pickup/PickupControls';
 import { PickupLog } from '../components/pickup/PickupLog';
+import { PickupStatus } from '../components/pickup/PickupStatus';
 import { PickupTeamPanel } from '../components/pickup/PickupTeamPanel';
 import {
   pickupRefusalCode,
@@ -84,6 +85,7 @@ export default function PickupLobby() {
         )}
         {lobby && lobby.state !== 'closed' && (
           <>
+            <PickupStatus lobby={lobby} busy={busy} onCommand={onCommand} onDeadline={reload} />
             <Box
               sx={{
                 display: 'grid',
