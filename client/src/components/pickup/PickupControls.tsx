@@ -74,6 +74,31 @@ export function PickupControls({ lobby, busy, onCommand }: PickupControlsProps) 
           {t('pickup.settings.mapIs', { map: pickedName ?? t('pickup.settings.randomMap') })}
         </Typography>
       )}
+      {can.set_settings ? (
+        <TextField
+          select
+          size="small"
+          label={t('pickup.settings.rollOut')}
+          value={lobby.settings.rollOut}
+          disabled={busy}
+          onChange={(event) =>
+            onCommand({
+              type: 'set_settings',
+              rollOut: event.target.value === 'losers' ? 'losers' : 'most_played',
+            })
+          }
+          slotProps={{ htmlInput: { 'data-testid': 'pickup-roll-out-rule' } }}
+        >
+          <MenuItem value="most_played">{t('pickup.settings.rollOutRule.most_played')}</MenuItem>
+          <MenuItem value="losers">{t('pickup.settings.rollOutRule.losers')}</MenuItem>
+        </TextField>
+      ) : (
+        <Typography variant="body2" color="text.secondary">
+          {t('pickup.settings.rollOutIs', {
+            rule: t(`pickup.settings.rollOutRule.${lobby.settings.rollOut}`),
+          })}
+        </Typography>
+      )}
       <Typography variant="body2" color="text.secondary">
         {lobby.teamsLocked ? t('pickup.teamsLocked') : t('pickup.teamsOpen')}
       </Typography>

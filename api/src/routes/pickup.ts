@@ -9,7 +9,7 @@ import { resolveViewerIdentity } from '../utils/viewerIdentity';
 import { isSameSiteRequest } from '../utils/accountConnections';
 import { log } from '../utils/logger';
 import { PickupError, pickupService, type CommandInput } from '../services/pickup/pickupService';
-import type { Actor, Side } from '../services/pickup/rules';
+import { ROLL_OUT_RULES, type Actor, type Side } from '../services/pickup/rules';
 import type { Untrusted } from '../utils/untrusted';
 
 const router = Router();
@@ -82,6 +82,23 @@ function playerIdOf(value: Untrusted): string {
   throw bad('playerId is required');
 }
 
+const BAD_ROLL_OUT = 'rollOut must be "most_played" or "losers"';
+
+function settingsCommand(fields: Record<string, Untrusted>): CommandInput {
+  const { teamSize } = fields;
+  if (teamSize !== undefined && typeof teamSize !== 'number') {
+    throw bad('teamSize must be a number');
+  }
+  const rollOut = ROLL_OUT_RULES.find((rule) => rule === fields.rollOut);
+  if (fields.rollOut !== undefined && !rollOut) throw bad(BAD_ROLL_OUT);
+  if (teamSize === undefined && !rollOut) throw bad('Send teamSize or rollOut');
+  return {
+    type: 'set_settings',
+    ...(teamSize === undefined ? {} : { teamSize }),
+    ...(rollOut ? { rollOut } : {}),
+  };
+}
+
 /** Read a command from a request body. Anything not understood is refused. */
 export function parseCommand(body: Untrusted): { command: CommandInput; version?: number } {
   if (typeof body !== 'object' || body === null) throw bad('Send a command');
@@ -108,6 +125,7 @@ export function parseCommand(body: Untrusted): { command: CommandInput; version?
         version,
       };
     case 'kick':
+    case 'roll_out':
     case 'make_host':
       return { command: { type: fields.type, playerId: playerIdOf(fields.playerId) }, version };
     case 'lock_teams':
@@ -119,8 +137,7 @@ export function parseCommand(body: Untrusted): { command: CommandInput; version?
       }
       return { command: { type: 'pick_map', map: fields.map }, version };
     case 'set_settings':
-      if (typeof fields.teamSize !== 'number') throw bad('teamSize must be a number');
-      return { command: { type: 'set_settings', teamSize: fields.teamSize }, version };
+      return { command: settingsCommand(fields), version };
     default:
       throw bad('Unknown command');
   }
@@ -214,11 +231,12 @@ router.get(
  *       waiting room), `leave`, and for the host or an admin `move`
  *       (`playerId`, `side`), `kick` (`playerId`), `make_host` (`playerId`),
  *       `scramble`, `balance`, `lock_teams` (`locked`), `set_settings`
- *       (`teamSize`), `pick_map` (`map`: a map id, or null to draw one),
+ *       (`teamSize`, `rollOut`: `most_played` or `losers`), `roll_out`
+ *       (`playerId`: to the waiting room, the longest waiter takes the seat), `pick_map` (`map`: a map id, or null to draw one),
  *       `start` (the ready check; both teams must be full), `cancel` (the
  *       ready check or the running match) and `close`. A seated player
  *       answers the ready check with `ready`; when everyone has, the match is
- *       created and waits for a free server. `scramble`, `balance`, `start`,
+ *       created and waits for a free server. `roll_out`, `scramble`, `balance`, `start`,
  *       `cancel` and `close` must send the lobby's `version`; a stale one is
  *       refused with 409 `stale`.
  *       Refusals are 409 with a `code` (403 `not_allowed`).
@@ -249,6 +267,8 @@ router.get(
  *                 type: boolean
  *               teamSize:
  *                 type: integer
+ *               rollOut:
+ *                 type: string
  *               map:
  *                 type: string
  *                 nullable: true

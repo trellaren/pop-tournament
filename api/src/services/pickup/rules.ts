@@ -7,6 +7,7 @@ import {
   MAX_LOBBY_PLAYERS,
   MAX_TEAM_SIZE,
   MIN_TEAM_SIZE,
+  ROLL_OUT_RULES,
   READY_SECONDS,
   SIDES,
   SYSTEM_ACTOR,
@@ -25,7 +26,6 @@ import {
   type Command,
   type CommandType,
   type Context,
-  type EventData,
   type Lobby,
   type LobbyEvent,
   type LobbyPlayer,
@@ -33,6 +33,7 @@ import {
   type Side,
   type SystemCommand,
 } from './lobby';
+import { rollOutAfterMatch, rollOutByHand } from './rollout';
 import { balance, scramble } from './teams';
 
 export * from './lobby';
@@ -40,6 +41,7 @@ export { balancedSplit, shuffled } from './teams';
 
 /** Commands that must name the version they were drawn for. */
 const ONE_SHOT: ReadonlySet<CommandType> = new Set([
+  'roll_out',
   'scramble',
   'balance',
   'start',
@@ -56,6 +58,7 @@ const MANAGE_ONLY: ReadonlySet<CommandType> = new Set([
   'balance',
   'lock_teams',
   'set_settings',
+  'roll_out',
   'pick_map',
   'start',
   'cancel',
@@ -68,6 +71,7 @@ const GATHERING_ONLY: ReadonlySet<CommandType> = new Set([
   'scramble',
   'balance',
   'set_settings',
+  'roll_out',
   'pick_map',
   'start',
 ]);
@@ -90,6 +94,7 @@ export function allowed(lobby: Lobby, actor: Actor): Record<CommandType, boolean
     balance: manage && gathering && seatedCount >= 2,
     lock_teams: manage,
     set_settings: manage && gathering,
+    roll_out: manage && gathering && seatedCount >= 1,
     pick_map: manage && gathering,
     start: manage && gathering && teamsFull(lobby),
     ready: lobby.state === 'ready_check' && Boolean(mine?.side) && !mine?.ready,
@@ -119,6 +124,7 @@ function join(lobby: Lobby, actor: Actor, side: Side | null, ctx: Context): Outc
     joinedAt: ctx.now,
     waitingSince: ctx.now,
     ready: false,
+    gamesInRow: 0,
   };
   return done(withPlayer(lobby, place(base, side, ctx.now)), [
     {
@@ -167,18 +173,38 @@ function move(lobby: Lobby, actor: Actor, playerId: string, side: Side | null, c
   ]);
 }
 
-function setSettings(lobby: Lobby, actor: Actor, teamSize: number): Outcome {
+function setSettings(
+  lobby: Lobby,
+  actor: Actor,
+  change: { teamSize?: number; rollOut?: string }
+): Outcome {
+  const teamSize = change.teamSize ?? lobby.settings.teamSize;
+  const rollOut = ROLL_OUT_RULES.find((rule) => rule === change.rollOut) ?? lobby.settings.rollOut;
+  if (change.rollOut !== undefined && rollOut !== change.rollOut) return refuse('invalid_settings');
   if (!Number.isInteger(teamSize) || teamSize < MIN_TEAM_SIZE || teamSize > MAX_TEAM_SIZE) {
     return refuse('invalid_settings');
   }
-  if (teamSize === lobby.settings.teamSize) return refuse('no_change');
+  const sizeChanged = teamSize !== lobby.settings.teamSize;
+  if (!sizeChanged && rollOut === lobby.settings.rollOut) return refuse('no_change');
   if (SIDES.some((side) => seated(lobby, side).length > teamSize)) {
     return refuse('team_size_below_seated');
   }
+  const events: LobbyEvent[] = [];
+  if (sizeChanged) {
+    events.push({ type: 'settings_changed', actorId: actor.playerId, data: { teamSize } });
+  }
+  if (rollOut !== lobby.settings.rollOut) {
+    events.push({ type: 'roll_out_rule', actorId: actor.playerId, data: { rule: rollOut } });
+  }
   // Another team size has another map pool, so a picked map no longer stands.
-  return done({ ...lobby, settings: { ...lobby.settings, teamSize }, pickedMap: null }, [
-    { type: 'settings_changed', actorId: actor.playerId, data: { teamSize } },
-  ]);
+  return done(
+    {
+      ...lobby,
+      settings: { teamSize, rollOut },
+      pickedMap: sizeChanged ? null : lobby.pickedMap,
+    },
+    events
+  );
 }
 
 /** Everyone seated is ready: the match starts. */
@@ -283,7 +309,11 @@ export function decide(lobby: Lobby, actor: Actor, command: Command, ctx: Contex
       ]);
     }
     case 'set_settings':
-      return setSettings(lobby, actor, command.teamSize);
+      return setSettings(lobby, actor, command);
+    case 'roll_out': {
+      const rolled = rollOutByHand(lobby, command.playerId, actor.playerId, ctx.now);
+      return rolled ? done(rolled.lobby, rolled.events) : refuse('not_in_lobby');
+    }
     case 'pick_map': {
       if (command.map === lobby.pickedMap) return refuse('no_change');
       return done({ ...lobby, pickedMap: command.map }, [
@@ -326,10 +356,23 @@ export function decideSystem(lobby: Lobby, command: SystemCommand, ctx: Context)
       { type: 'ready_timed_out', actorId: SYSTEM_ACTOR, data: { count: late.length } },
     ]);
   }
+  if (command.type === 'idle_timeout') {
+    if (lobby.state !== 'gathering') return refuse('stale');
+    return done({ ...lobby, state: 'closed' }, [
+      { type: 'closed', actorId: SYSTEM_ACTOR, data: { reason: 'idle' } },
+    ]);
+  }
   if (lobby.state !== 'in_match' || lobby.matchSlug !== command.slug) return refuse('stale');
-  const data: EventData =
-    command.type === 'match_ended'
-      ? { matchNo: lobby.matchNo, winner: command.winner }
-      : { matchNo: lobby.matchNo };
-  return done(toGathering(lobby), [{ type: command.type, actorId: SYSTEM_ACTOR, data }]);
+  if (command.type === 'match_ended') {
+    const ended: LobbyEvent = {
+      type: 'match_ended',
+      actorId: SYSTEM_ACTOR,
+      data: { matchNo: lobby.matchNo, winner: command.winner },
+    };
+    const rolled = rollOutAfterMatch(toGathering(lobby), command.winner, ctx);
+    return done(rolled.lobby, [ended, ...rolled.events]);
+  }
+  return done(toGathering(lobby), [
+    { type: command.type, actorId: SYSTEM_ACTOR, data: { matchNo: lobby.matchNo } },
+  ]);
 }

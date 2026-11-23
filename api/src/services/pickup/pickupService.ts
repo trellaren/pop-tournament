@@ -6,41 +6,32 @@
 import { randomUUID } from 'crypto';
 import { log } from '../../utils/logger';
 import { emitTopic } from '../socketService';
-import { getGameRatings } from '../gameRatings';
 import {
-  allowed,
+  IDLE_SECONDS,
   decide,
   decideSystem,
   newLobby,
-  seated,
-  waiting,
   type Actor,
   type Command,
-  type CommandType,
-  type EventData,
   type Lobby,
-  type LobbyPlayer,
-  type LobbySettings,
   type Effect,
   type Outcome,
   type RefusalCode,
   type Side,
   type SystemCommand,
 } from './rules';
-import { cancelPickupMatch, createPickupMatch, mapPoolFor, type PickupMap } from './pickupMatch';
+import { cancelPickupMatch, createPickupMatch, mapPoolFor } from './pickupMatch';
+import { buildList, buildView, ratingsOf, type LobbySummary, type LobbyView } from './pickupView';
 import {
-  PICKUP_GAME,
   endPickupMatch,
   insertLobby,
   lobbyIdOfMatch,
+  lobbyTouchedAt,
   loadMatchState,
-  loadEvents,
   loadLobby,
-  loadNames,
   loadOpenLobbies,
   openLobbyIdOf,
   saveLobby,
-  type PlayerName,
 } from './pickupStore';
 
 /** The page topic: every pickup page re-reads when it is emitted. */
@@ -92,81 +83,11 @@ function refusal(code: PickupErrorCode): PickupError {
 /** A command as the API takes it: Balance's ratings are read here, never sent. */
 export type CommandInput = Exclude<Command, { type: 'balance' }> | { type: 'balance' };
 
-export interface PlayerView {
-  playerId: string;
-  name: string;
-  avatarUrl: string | null;
-  /** The rating shown on the row and used by Balance teams. */
-  rating: number | null;
-  isHost: boolean;
-  /** Pressed Ready in the running ready check. */
-  ready: boolean;
-}
-
-export interface MatchView {
-  slug: string;
-  matchNo: number;
-  /** The platform's status of the match: pending, loaded, live… */
-  status: string;
-  map: string | null;
-}
-
-export interface LogLine {
-  id: number;
-  type: string;
-  at: number;
-  actorId: string;
-  actorName: string;
-  /** The player the line is about, when it is about one. */
-  playerName: string | null;
-  data: EventData;
-}
-
-export interface LobbySummary {
-  id: string;
-  state: Lobby['state'];
-  hostId: string;
-  hostName: string;
-  teamSize: number;
-  teamsLocked: boolean;
-  seated: number;
-  waiting: number;
-}
-
-export interface LobbyView {
-  id: string;
-  state: Lobby['state'];
-  version: number;
-  hostId: string;
-  teamsLocked: boolean;
-  settings: LobbySettings;
-  pickedMap: string | null;
-  /** The maps the host picks from. */
-  maps: PickupMap[];
-  /** When the ready check ends (epoch seconds); null outside one. */
-  deadline: number | null;
-  /** The running match; null outside one. */
-  match: MatchView | null;
-  teams: Record<Side, PlayerView[]>;
-  waiting: PlayerView[];
-  log: LogLine[];
-  /** Where the viewer is: a side, 'waiting', or null when not in the lobby. */
-  me: Side | 'waiting' | null;
-  can: Record<CommandType, boolean>;
-}
-
-const UNKNOWN_PLAYER = 'Unknown player';
 /** How long a completed match may wait for its result before the lobby moves on without one. */
 const RESULT_GRACE_SECONDS = 30;
 
 function isUniqueViolation(error: Error): boolean {
   return 'code' in error && error.code === '23505';
-}
-
-function whereIs(lobby: Lobby, playerId: string): Side | 'waiting' | null {
-  const mine = lobby.players.find((p) => p.playerId === playerId);
-  if (!mine) return null;
-  return mine.side ?? 'waiting';
 }
 
 export class PickupService {
@@ -187,16 +108,11 @@ export class PickupService {
     return run;
   }
 
-  private async ratingsOf(playerIds: string[]): Promise<Record<string, number>> {
-    const ratings = await getGameRatings(playerIds, PICKUP_GAME);
-    const out: Record<string, number> = {};
-    for (const [id, rating] of ratings) out[id] = rating.elo;
-    return out;
-  }
-
   /** Open a lobby with the actor as its host, seated on Team A. */
   open(actor: Actor): Promise<string> {
     return this.locked(async () => {
+      // An idle lobby closes here, so it cannot block a new one.
+      await this.openLobbies();
       if (await openLobbyIdOf(actor.playerId)) throw refusal('in_other_lobby');
       const now = this.clock();
       const lobby = newLobby(randomUUID(), actor.playerId, now);
@@ -234,7 +150,7 @@ export class PickupService {
         input.type === 'balance'
           ? {
               type: 'balance',
-              ratings: await this.ratingsOf(
+              ratings: await ratingsOf(
                 lobby.players.filter((p) => p.side !== null).map((p) => p.playerId)
               ),
             }
@@ -298,6 +214,12 @@ export class PickupService {
   private async current(lobbyId: string): Promise<Lobby | null> {
     const lobby = await loadLobby(lobbyId);
     if (!lobby) return null;
+    if (lobby.state === 'gathering') {
+      const touched = await lobbyTouchedAt(lobbyId);
+      if (touched !== null && this.clock() - touched >= IDLE_SECONDS) {
+        return this.system(lobby, { type: 'idle_timeout' });
+      }
+    }
     if (
       lobby.state === 'ready_check' &&
       lobby.deadline !== null &&
@@ -350,99 +272,27 @@ export class PickupService {
     });
   }
 
-  private playerView(
-    player: LobbyPlayer,
-    lobby: Lobby,
-    names: Map<string, PlayerName>,
-    ratings: Record<string, number>
-  ): PlayerView {
-    const known = names.get(player.playerId);
-    return {
-      playerId: player.playerId,
-      name: known?.name ?? UNKNOWN_PLAYER,
-      avatarUrl: known?.avatarUrl ?? null,
-      rating: ratings[player.playerId] ?? null,
-      isHost: player.playerId === lobby.hostId,
-      ready: player.ready,
-    };
+  /** The lobbies still open once each is brought up to date (an idle one closes). */
+  private async openLobbies(): Promise<Lobby[]> {
+    const out: Lobby[] = [];
+    for (const lobby of await loadOpenLobbies()) {
+      const current = await this.current(lobby.id);
+      if (current && current.state !== 'closed') out.push(current);
+    }
+    return out;
   }
 
   /** The lobby as one viewer sees it. */
   async view(lobbyId: string, viewer: Actor): Promise<LobbyView> {
     const lobby = await this.locked(() => this.current(lobbyId));
     if (!lobby) throw refusal('not_found');
-    const matchState = lobby.matchSlug ? await loadMatchState(lobby.matchSlug) : null;
-    const maps = lobby.state === 'closed' ? [] : await mapPoolFor(lobby.settings.teamSize);
-    const events = await loadEvents(lobbyId);
-    const ids = lobby.players.map((p) => p.playerId);
-    const mentioned = events.flatMap((e) => {
-      const about = e.data.playerId;
-      return typeof about === 'string' ? [e.actorId, about] : [e.actorId];
-    });
-    const [names, ratings] = await Promise.all([
-      loadNames([...ids, ...mentioned]),
-      this.ratingsOf(ids),
-    ]);
-    const row = (p: LobbyPlayer) => this.playerView(p, lobby, names, ratings);
-    const bySeat = (x: LobbyPlayer, y: LobbyPlayer) => x.joinedAt - y.joinedAt;
-    return {
-      id: lobby.id,
-      state: lobby.state,
-      version: lobby.version,
-      hostId: lobby.hostId,
-      teamsLocked: lobby.teamsLocked,
-      settings: lobby.settings,
-      pickedMap: lobby.pickedMap,
-      maps,
-      deadline: lobby.deadline,
-      match: lobby.matchSlug
-        ? {
-            slug: lobby.matchSlug,
-            matchNo: lobby.matchNo,
-            status: matchState?.status ?? 'pending',
-            map: matchState?.map ?? null,
-          }
-        : null,
-      teams: {
-        a: seated(lobby, 'a').sort(bySeat).map(row),
-        b: seated(lobby, 'b').sort(bySeat).map(row),
-      },
-      waiting: waiting(lobby).map(row),
-      log: events.map((e) => {
-        const about = e.data.playerId;
-        return {
-          id: e.id,
-          type: e.type,
-          at: e.at,
-          actorId: e.actorId,
-          actorName: names.get(e.actorId)?.name ?? UNKNOWN_PLAYER,
-          playerName: typeof about === 'string' ? (names.get(about)?.name ?? UNKNOWN_PLAYER) : null,
-          data: e.data,
-        };
-      }),
-      me: whereIs(lobby, viewer.playerId),
-      can: allowed(lobby, viewer),
-    };
+    return buildView(lobby, viewer);
   }
 
   /** The open lobbies, and the one the viewer is in. */
   async list(viewer: Actor): Promise<{ lobbies: LobbySummary[]; mine: string | null }> {
-    const lobbies = await loadOpenLobbies();
-    const names = await loadNames(lobbies.map((l) => l.hostId));
-    const mine = lobbies.find((l) => l.players.some((p) => p.playerId === viewer.playerId));
-    return {
-      mine: mine?.id ?? null,
-      lobbies: lobbies.map((l) => ({
-        id: l.id,
-        state: l.state,
-        hostId: l.hostId,
-        hostName: names.get(l.hostId)?.name ?? UNKNOWN_PLAYER,
-        teamSize: l.settings.teamSize,
-        teamsLocked: l.teamsLocked,
-        seated: l.players.filter((p) => p.side !== null).length,
-        waiting: l.players.filter((p) => p.side === null).length,
-      })),
-    };
+    const open = await this.locked(() => this.openLobbies());
+    return buildList(open, viewer);
   }
 }
 
