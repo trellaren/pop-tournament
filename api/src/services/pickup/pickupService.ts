@@ -10,6 +10,7 @@ import {
   IDLE_SECONDS,
   decide,
   decideSystem,
+  mayManage,
   newLobby,
   type Actor,
   type CaptainMethod,
@@ -23,6 +24,8 @@ import {
 } from './rules';
 import { cancelPickupMatch, createPickupMatch, mapPoolFor, mapPools } from './pickupMatch';
 import { emitPickupChange } from './pickupBus';
+import { isKnownPlayer } from './pickupInvites';
+import { inviteTokenFor, linkAdmits } from './pickupInviteLinks';
 import { buildList, buildView, ratingsOf, type LobbySummary, type LobbyView } from './pickupView';
 import {
   endPickupMatch,
@@ -44,7 +47,9 @@ export type PickupErrorCode =
   | 'not_found'
   | 'lobby_exists'
   | 'in_other_lobby'
-  | 'invalid_map';
+  | 'invalid_map'
+  | 'unknown_player'
+  | 'invite_link_invalid';
 
 export class PickupError extends Error {
   constructor(
@@ -77,6 +82,12 @@ const REFUSALS: Record<PickupErrorCode, string> = {
   not_found: 'No such lobby',
   lobby_exists: 'A lobby is already open',
   in_other_lobby: 'You are already in another lobby',
+  invite_only: 'This lobby is for invited players only',
+  already_invited: 'That player is already invited',
+  not_invited: 'That player is not invited',
+  invite_limit: 'The invite list is full',
+  unknown_player: 'No such player on the site',
+  invite_link_invalid: 'That invite link no longer works',
 };
 
 function refusal(code: PickupErrorCode): PickupError {
@@ -86,7 +97,8 @@ function refusal(code: PickupErrorCode): PickupError {
 
 /** A command as the API takes it: Balance's ratings are read here, never sent. */
 export type CommandInput =
-  | Exclude<Command, { type: 'balance' | 'start_draft' }>
+  | Exclude<Command, { type: 'balance' | 'start_draft' | 'join' }>
+  | { type: 'join'; side: Side | null; /** An invite link's token. */ invite?: string }
   | { type: 'balance' }
   | { type: 'start_draft'; method: CaptainMethod; captainA?: string; captainB?: string };
 
@@ -162,16 +174,29 @@ export class PickupService {
         const other = await openLobbyIdOf(actor.playerId);
         if (other && other !== lobbyId) throw refusal('in_other_lobby');
       }
-      const command = await this.withRatings(lobby, input);
+      if (input.type === 'invite' && !(await isKnownPlayer(input.playerId))) {
+        throw refusal('unknown_player');
+      }
       const now = this.clock();
+      const command = await this.asCommand(lobby, input, now);
       const outcome = decide(lobby, actor, command, { now, random: this.random, version });
-      if (!outcome.ok) throw refusal(outcome.code);
+      if (!outcome.ok) {
+        const badLink = outcome.code === 'invite_only' && input.type === 'join' && input.invite;
+        throw refusal(badLink ? 'invite_link_invalid' : outcome.code);
+      }
       await this.apply(lobby, outcome, now);
     });
   }
 
-  /** Balance and the draft go by ratings, which are read here and never sent by a client. */
-  private async withRatings(lobby: Lobby, input: CommandInput): Promise<Command> {
+  /**
+   * The command the rules take. Balance and the draft go by ratings, and a
+   * join by its invite link: both are read here and never taken from a client.
+   */
+  private async asCommand(lobby: Lobby, input: CommandInput, now: number): Promise<Command> {
+    if (input.type === 'join') {
+      const byLink = input.invite !== undefined && linkAdmits(lobby, input.invite, now);
+      return { type: 'join', side: input.side, byLink };
+    }
     if (input.type === 'balance') {
       const seatedIds = lobby.players.filter((p) => p.side !== null).map((p) => p.playerId);
       return { type: 'balance', ratings: await ratingsOf(seatedIds) };
@@ -314,6 +339,15 @@ export class PickupService {
   async openLobbyId(): Promise<string | null> {
     const open = await this.locked(() => this.openLobbies());
     return open[0]?.id ?? null;
+  }
+
+  /** A new invite link's token for this lobby; only its host or an admin gets one. */
+  async inviteToken(lobbyId: string, actor: Actor): Promise<string> {
+    const lobby = await this.current(lobbyId);
+    if (!lobby) throw refusal('not_found');
+    if (lobby.state === 'closed') throw refusal('closed');
+    if (!mayManage(lobby, actor)) throw refusal('not_allowed');
+    return inviteTokenFor(lobby, actor, this.clock());
   }
 
   /** The lobby as one viewer sees it. */

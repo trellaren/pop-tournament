@@ -18,6 +18,9 @@ const KNOWN = new Set([
   'teams_unlocked',
   'settings_changed',
   'format',
+  'visibility',
+  'invited',
+  'invite_revoked',
   'closed',
   'map_picked',
   'ready_check',
@@ -53,6 +56,11 @@ function lineKey(line: PickupLogLine): string {
     return line.data.format === 'wingman'
       ? 'pickup.log.format_wingman'
       : 'pickup.log.format_classic';
+  }
+  if (line.type === 'visibility') {
+    return line.data.visibility === 'invite'
+      ? 'pickup.log.visibility_invite'
+      : 'pickup.log.visibility_open';
   }
   if (line.type === 'map_method') return `pickup.log.method.${String(line.data.method)}`;
   if (line.type === 'map_voted' && line.data.map === null) return 'pickup.log.map_voted_none';

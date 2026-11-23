@@ -8,6 +8,7 @@ import type { EventData, Lobby, LobbyEvent, LobbyPlayer, LobbyState, Side } from
 import type { Untrusted } from '../../utils/untrusted';
 import { mapFromMatch } from '../matchmaking/mapFromMatch';
 import { parseDraft, parseSettings, parseVotes } from './pickupParse';
+import { invitesOf, writeInvites } from './pickupInvites';
 
 export const PICKUP_GAME = 'cs2';
 export const PICKUP_MODE = '5v5';
@@ -93,7 +94,7 @@ function toPlayer(row: PlayerRow): LobbyPlayer {
   };
 }
 
-function toLobby(row: LobbyRow, players: PlayerRow[]): Lobby {
+function toLobby(row: LobbyRow, players: PlayerRow[], invited: string[]): Lobby {
   return {
     id: row.id,
     state: stateOf(row.state),
@@ -107,6 +108,7 @@ function toLobby(row: LobbyRow, players: PlayerRow[]): Lobby {
     matchSlug: row.match_slug,
     draft: parseDraft(row.draft),
     votes: parseVotes(row.votes),
+    invited,
     players: players.map(toPlayer),
   };
 }
@@ -127,7 +129,7 @@ export async function loadLobby(id: string): Promise<Lobby | null> {
     `SELECT ${LOBBY_COLUMNS} FROM pickup_lobbies WHERE id = ?`,
     [id]
   );
-  return row ? toLobby(row, await playersOf(id)) : null;
+  return row ? toLobby(row, await playersOf(id), await invitesOf(id)) : null;
 }
 
 /** The lobbies that are not closed, oldest first. */
@@ -135,7 +137,9 @@ export async function loadOpenLobbies(): Promise<Lobby[]> {
   const rows = await db.queryAsync<LobbyRow>(
     `SELECT ${LOBBY_COLUMNS} FROM pickup_lobbies WHERE state <> 'closed' ORDER BY created_at, id`
   );
-  return Promise.all(rows.map(async (row) => toLobby(row, await playersOf(row.id))));
+  return Promise.all(
+    rows.map(async (row) => toLobby(row, await playersOf(row.id), await invitesOf(row.id)))
+  );
 }
 
 /** The open lobby a player is in, if any. */
@@ -177,6 +181,7 @@ async function writePlayersAndEvents(
       [lobby.id, p.playerId, p.side, p.joinedAt, p.waitingSince, p.ready, p.gamesInRow]
     );
   }
+  await writeInvites(client, lobby);
   for (const event of events) {
     await client.query(
       `INSERT INTO pickup_events (lobby_id, type, actor_id, data, created_at)

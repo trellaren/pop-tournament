@@ -45,6 +45,8 @@ function lobby(change: Partial<LobbyView> = {}): LobbyView {
     scramble: false,
     balance: false,
     lock_teams: false,
+    invite: false,
+    revoke_invite: false,
     set_settings: false,
     roll_out: false,
     pick_map: false,
@@ -81,6 +83,7 @@ function lobby(change: Partial<LobbyView> = {}): LobbyView {
       b: [row('3', 'Cy')],
     },
     waiting: [row('4', 'Di')],
+    invited: [],
     log: [],
     me: null,
     can,
@@ -156,6 +159,19 @@ test.describe('pickup Discord panel (pure)', () => {
     expect(buttons.every((b) => parseCustomId(b.custom_id)?.version === 7)).toBe(true);
     expect(message.components.length).toBeLessThanOrEqual(LIMITS.rows);
     expect(message.components.every((r) => r.components.length <= 5)).toBe(true);
+  });
+
+  test('the header says Wingman and invite only', TAGS, () => {
+    const base = lobby();
+    const settings = {
+      ...base.settings,
+      format: 'wingman' as const,
+      visibility: 'invite' as const,
+    };
+    const text = JSON.stringify(panelMessage({ ...base, settings }, SITE).embeds);
+    expect(text).toContain('Wingman · 2v2');
+    expect(text).toContain('invite only');
+    expect(JSON.stringify(panelMessage(base, SITE).embeds)).not.toContain('invite only');
   });
 
   test('Launch Dashboard only while the Activity is turned on', TAGS, () => {

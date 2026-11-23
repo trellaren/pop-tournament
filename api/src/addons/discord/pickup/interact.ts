@@ -3,11 +3,10 @@
  * /pickup command. A press runs the same lobby command the page runs, as the
  * platform account that Discord account belongs to.
  */
-import { db } from '../../../config/database';
 import { log } from '../../../utils/logger';
 import type { Untrusted } from '../../../utils/untrusted';
 import { PickupError, pickupService } from '../../../services/pickup/pickupService';
-import type { Actor } from '../../../services/pickup/rules';
+import { actorOfDiscord as actorOf } from '../../../services/pickup/activitySignIn';
 import { commandOf, doneText, parseCustomId } from './panelText';
 import { schedulePanel } from './panel';
 import { setPickupDiscordSettings, siteUrl } from './settings';
@@ -42,6 +41,17 @@ export const PICKUP_COMMAND = {
     { type: 1, name: 'leave', description: 'Leave the lobby' },
     {
       type: 1,
+      name: 'invite',
+      description: 'Host: invite someone to the lobby',
+      options: [{ type: 6, name: 'user', description: 'Who to invite', required: true }],
+    },
+    {
+      type: 1,
+      name: 'invite-link',
+      description: 'Host: a link that lets whoever holds it join, for 12 hours',
+    },
+    {
+      type: 1,
       name: 'setup',
       description: 'Admins: where the panel is posted and which voice channel the lobby uses',
       options: [
@@ -60,25 +70,15 @@ export const PICKUP_COMMAND = {
 const NOT_LINKED =
   'I do not know your account yet: sign in on the site and connect Discord there, once. Then press again.';
 
-/** The platform account a Discord user acts as, or null when none has that Discord account. */
-async function actorOf(discordUserId: string): Promise<Actor | null> {
-  const row = await db.queryOneAsync<{ id: string | null; is_admin: number | null }>(
-    `SELECT p.id, p.is_admin FROM players p
-      WHERE p.id = COALESCE(
-        (SELECT steam_id FROM auth_identities WHERE provider = 'discord' AND provider_user_id = ? ORDER BY id DESC LIMIT 1),
-        (SELECT id FROM players WHERE discord_id = ? LIMIT 1)
-      ) AND p.deleted_at IS NULL AND p.banned_at IS NULL`,
-    [discordUserId, discordUserId]
-  );
-  return row?.id ? { playerId: row.id, isAdmin: Number(row.is_admin) === 1 } : null;
-}
-
 function userIdOf(interaction: Record<string, Untrusted>): string | null {
   const member = interaction.member as { user?: { id?: Untrusted } } | undefined;
   const user = interaction.user as { id?: Untrusted } | undefined;
   const id = user?.id ?? member?.user?.id;
   return typeof id === 'string' ? id : null;
 }
+
+const NOT_LINKED_OTHER =
+  'That person has not connected Discord on the site yet. Send them an invite link instead: /pickup invite-link';
 
 /** Run something for the lobby and answer in words; a refusal is its own words. */
 async function attempt(what: () => Promise<string | null>): Promise<string | null> {
@@ -192,6 +192,17 @@ export async function pickupCommandAnswer(interaction: Record<string, Untrusted>
       const side = where === 'a' || where === 'b' ? where : null;
       await pickupService.command(lobbyId, actor, { type: 'join', side });
       return `You are in: ${siteUrl()}/pickup/${lobbyId}`;
+    }
+    if (sub.name === 'invite') {
+      const who = optionsOf(sub.options).find((o) => o.name === 'user')?.value;
+      const invited = typeof who === 'string' ? await actorOf(who) : null;
+      if (!invited) return NOT_LINKED_OTHER;
+      await pickupService.command(lobbyId, actor, { type: 'invite', playerId: invited.playerId });
+      return `Invited <@${String(who)}>.`;
+    }
+    if (sub.name === 'invite-link') {
+      const token = await pickupService.inviteToken(lobbyId, actor);
+      return `Whoever opens this can join, for 12 hours: ${siteUrl()}/pickup/${lobbyId}?invite=${token}`;
     }
     return 'I do not know that command.';
   });

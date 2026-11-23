@@ -186,7 +186,8 @@ function stateLine(lobby: LobbyView, siteUrl: string): string {
   const map = mapName(lobby.pickedMap) ?? 'random map';
   const locked = lobby.teamsLocked ? ' · teams locked' : '';
   const wingman = lobby.settings.format === 'wingman' ? 'Wingman · ' : '';
-  return `Gathering · ${wingman}${size}v${size} · ${map}${locked}`;
+  const invited = lobby.settings.visibility === 'invite' ? ' · invite only' : '';
+  return `Gathering · ${wingman}${size}v${size} · ${map}${locked}${invited}`;
 }
 
 function button(

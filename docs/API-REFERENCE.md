@@ -11,7 +11,7 @@
 
 # API reference
 
-Every endpoint this API serves — 782 of them, 489 behind auth —
+Every endpoint this API serves — 783 of them, 489 behind auth —
 read directly from the routers rather than written down, so it cannot drift.
 
 For *how* to authenticate a bot or script, and a task-oriented tour of the
@@ -1294,6 +1294,7 @@ Pickup lobbies (docs/design/pickup-lobby.md): a group picks its own teams by cho
 | `POST` | `/api/pickup` | public |
 | `GET` | `/api/pickup/:id` | public |
 | `POST` | `/api/pickup/:id/commands` | public |
+| `POST` | `/api/pickup/:id/invite-link` | public |
 
 ### Test helpers
 

@@ -289,7 +289,16 @@ Each is its own pull request into `pop`, stacked in this order.
    size. Choosing a format brings its team size (2, a 1v1 stays; 5 for
    Classic) and its default maps unless the same change names them, and
    forgets a picked map.
-9. **Who can join.** Invited only, invites and invite links.
+9. **Who can join.** The lobby setting Who can join, Everyone or Invited
+   only, restricts joining and never seeing. The host and admins invite
+   players (a list of at most 100, kept whatever the setting and when the
+   person leaves); switching to Invited only invites everyone already in.
+   Revoke takes the invite and not the seat; Kick takes both. An invite link
+   is a signed token naming the lobby and its maker, good for twelve hours
+   while the lobby is open and its maker still runs it (a host's link ends
+   when the host changes); whoever joins by one goes on the list. The token
+   is never logged and never in the lobby log. A link the person still
+   holds lets them back in after a Revoke or Kick until it runs out.
 10. **Mid-match substitution**, through the platform's roster update.
 11. **Spectators, practice and retakes**, through the platform's servers.
 12. **Moderation and roles.** What the table below marks "build".

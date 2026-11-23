@@ -13975,7 +13975,7 @@
           "Pickup"
         ],
         "summary": "What the Discord Activity needs to start",
-        "description": "The Discord application's id the Activity authorizes against, or\nnull while \"Sign in with Discord\" is not set up. No secret.\n",
+        "description": "The Discord application's id the Activity authorizes against, or\nnull while \"Sign in with Discord\" is not set up, and the site's\npublic address, for links opened outside Discord. No secret.\n",
         "responses": {
           "200": {
             "description": "The Activity's configuration"
@@ -14051,7 +14051,7 @@
           "Pickup"
         ],
         "summary": "Act in a pickup lobby",
-        "description": "One command per request: `join` (`side`: `a`, `b` or null for the\nwaiting room), `leave`, and for the host or an admin `move`\n(`playerId`, `side`), `kick` (`playerId`), `make_host` (`playerId`),\n`scramble`, `balance`, `lock_teams` (`locked`), `set_settings`\n(`teamSize`, `rollOut`: `most_played` or `losers`, `mapMethod`:\n`pick`, `veto` (the two teams veto on the match page) or `vote` (the\nseated players vote with `vote_map` (`map`) after the ready check),\n`poolId`: one of the platform's map pools, or null), `roll_out`\n(`playerId`: to the waiting room, the longest waiter takes the seat),\n`start_draft` (`method`: `random`, `rating` or `host` with `captainA`\nand `captainB`; two captains then pick in turn with `pick`\n(`playerId`), 30 seconds a pick), `pick_map` (`map`: a map id, or null to draw one),\n`start` (the ready check; both teams must be full), `cancel` (the\nready check or the running match) and `close`. A seated player\nanswers the ready check with `ready`; when everyone has, the match is\ncreated and waits for a free server. `roll_out`, `start_draft`, `scramble`, `balance`, `start`,\n`cancel` and `close` must send the lobby's `version`; a stale one is\nrefused with 409 `stale`.\nRefusals are 409 with a `code` (403 `not_allowed`).\n",
+        "description": "One command per request: `join` (`side`: `a`, `b` or null for the\nwaiting room; `invite`: an invite link's token, for a lobby only\nthe invited can join), `leave`, and for the host or an admin `move`\n(`playerId`, `side`), `kick` (`playerId`), `make_host` (`playerId`),\n`scramble`, `balance`, `lock_teams` (`locked`), `invite` and\n`revoke_invite` (`playerId`), `set_settings` (`format`: `classic`\nor `wingman`, `visibility`: `open` or `invite`, `teamSize`, `rollOut`: `most_played` or `losers`, `mapMethod`:\n`pick`, `veto` (the two teams veto on the match page) or `vote` (the\nseated players vote with `vote_map` (`map`) after the ready check),\n`poolId`: one of the platform's map pools, or null), `roll_out`\n(`playerId`: to the waiting room, the longest waiter takes the seat),\n`start_draft` (`method`: `random`, `rating` or `host` with `captainA`\nand `captainB`; two captains then pick in turn with `pick`\n(`playerId`), 30 seconds a pick), `pick_map` (`map`: a map id, or null to draw one),\n`start` (the ready check; both teams must be full), `cancel` (the\nready check or the running match) and `close`. A seated player\nanswers the ready check with `ready`; when everyone has, the match is\ncreated and waits for a free server. `roll_out`, `start_draft`, `scramble`, `balance`, `start`,\n`cancel` and `close` must send the lobby's `version`; a stale one is\nrefused with 409 `stale`.\nRefusals are 409 with a `code` (403 `not_allowed`).\n",
         "parameters": [
           {
             "in": "path",
@@ -14125,6 +14125,33 @@
           },
           "409": {
             "description": "Refused, with a code"
+          }
+        }
+      }
+    },
+    "/api/pickup/{id}/invite-link": {
+      "post": {
+        "tags": [
+          "Pickup"
+        ],
+        "summary": "Make an invite link to a pickup lobby",
+        "description": "For the lobby's host or an admin. The token lets whoever holds it\njoin this lobby for twelve hours, while it is open and its maker\nstill runs it; send it as `invite` with `join`. The page's address\nfor it is `/pickup/{id}?invite={token}`.\n",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The token"
+          },
+          "403": {
+            "description": "Not the host or an admin"
           }
         }
       }

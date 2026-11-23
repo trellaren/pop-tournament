@@ -152,6 +152,12 @@ export async function announce(change: PickupChange): Promise<void> {
         'Your pick: choose a player on the panel.'
       );
   }
+  const invited = change.events.flatMap((e) =>
+    e.type === 'invited' && typeof e.data.playerId === 'string' ? [e.data.playerId] : []
+  );
+  if (invited.length > 0) {
+    await ping(change.lobby.id, invited, 'You are invited to the lobby: join on the panel.');
+  }
   const rolledIn = change.events.flatMap((e) =>
     e.type === 'rolled_in' && typeof e.data.playerId === 'string' ? [e.data.playerId] : []
   );

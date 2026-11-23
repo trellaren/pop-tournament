@@ -13,7 +13,7 @@ import { PickupLobbyBody } from '../components/pickup/PickupLobbyBody';
 import {
   listPickupLobbies,
   openPickupLobby,
-  pickupActivityClientId,
+  pickupActivityConfig,
   pickupRefusalCode,
   signInToPickupActivity,
 } from '../components/pickup/pickupApi';
@@ -45,15 +45,18 @@ async function signIn(
   return { playerId: signedIn.playerId, expiresAt: signedIn.expiresAt };
 }
 
-function useActivity(): { stage: Stage; host: ActivityHost | null } {
+function useActivity(): { stage: Stage; host: ActivityHost | null; siteOrigin: string } {
   const [stage, setStage] = React.useState<Stage>({ name: 'starting' });
   const [host, setHost] = React.useState<ActivityHost | null>(null);
+  // Inside Discord this page's own address is Discord's proxy: the server names the site.
+  const [siteOrigin, setSiteOrigin] = React.useState(window.location.origin);
 
   React.useEffect(() => {
     let stopped = false;
     let renew: number | undefined;
     const run = async () => {
-      const clientId = await pickupActivityClientId();
+      const { clientId, siteUrl } = await pickupActivityConfig();
+      if (siteUrl) setSiteOrigin(siteUrl);
       if (!clientId) return setStage({ name: 'not_configured' });
       let connected: ActivityHost;
       try {
@@ -85,7 +88,7 @@ function useActivity(): { stage: Stage; host: ActivityHost | null } {
     };
   }, []);
 
-  return { stage, host };
+  return { stage, host, siteOrigin };
 }
 
 /** The open lobby, or the button that opens one. */
@@ -151,13 +154,14 @@ function ActivityLobby({ playerId }: { playerId: string }) {
 
 export default function PickupActivity() {
   const { t } = useTranslation();
-  const { stage, host } = useActivity();
+  const { stage, host, siteOrigin } = useActivity();
   const pickupHost = React.useMemo<PickupHost>(
     () => ({
-      openOutside: (path) => host?.openExternal(`${window.location.origin}${path}`),
+      openOutside: (path) => host?.openExternal(`${siteOrigin}${path}`),
       pollMs: POLL_MS,
+      siteOrigin,
     }),
-    [host]
+    [host, siteOrigin]
   );
 
   return (
@@ -186,7 +190,7 @@ export default function PickupActivity() {
             <Button
               variant="contained"
               sx={{ mt: 2 }}
-              onClick={() => host?.openExternal(`${window.location.origin}/`)}
+              onClick={() => host?.openExternal(`${siteOrigin}/`)}
             >
               {t('pickup.activity.openSite')}
             </Button>

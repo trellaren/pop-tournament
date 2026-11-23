@@ -50,6 +50,11 @@
         "classic": "Classic",
         "wingman": "Wingman"
       },
+      "visibility": "Who can join",
+      "visibilityName": {
+        "open": "Everyone",
+        "invite": "Invited only"
+      },
       "teamSize": "Team size",
       "versus": "{{size}}v{{size}}",
       "map": "Map",
@@ -109,6 +114,10 @@
       "teams_locked": "{{actor}} locked the teams.",
       "teams_unlocked": "{{actor}} unlocked the teams.",
       "settings_changed": "{{actor}} set the team size to {{size}}.",
+      "visibility_open": "{{actor}} let everyone join.",
+      "visibility_invite": "{{actor}} made the lobby invited only.",
+      "invited": "{{actor}} invited {{player}}.",
+      "invite_revoked": "{{actor}} took back {{player}}'s invite.",
       "format_classic": "{{actor}} set the format to Classic.",
       "format_wingman": "{{actor}} set the format to Wingman.",
       "closed": "The lobby was closed.",
@@ -165,7 +174,13 @@
       "teams_not_full": "Both teams must be full first.",
       "invalid_map": "That map is not in the pool.",
       "not_your_turn": "It is not your pick.",
-      "invalid_captains": "Choose two different players in the lobby as captains."
+      "invalid_captains": "Choose two different players in the lobby as captains.",
+      "invite_only": "This lobby is for invited players only.",
+      "already_invited": "That player is already invited.",
+      "not_invited": "That player is not invited.",
+      "invite_limit": "The invite list is full.",
+      "unknown_player": "That player has never signed in to the site.",
+      "invite_link_invalid": "That invite link no longer works. Ask the host for a new one."
     },
     "ready": {
       "title": "Ready check",
@@ -201,6 +216,19 @@
     "vote": {
       "title": "Vote for the map",
       "progress": "{{voted}} of {{total}} voted · {{seconds}} s left"
+    },
+    "invites": {
+      "title": "Invites",
+      "hintOpen": "Everyone can join this lobby. Invites matter once it is invited only.",
+      "hintInvite": "Only the players below, and anyone holding an invite link, can join.",
+      "player": "Invite a player",
+      "invite": "Invite",
+      "copyLink": "Copy invite link",
+      "copied": "Copied. The link works for 12 hours:",
+      "copyYourself": "The link works for 12 hours. Copy it from here:",
+      "none": "Nobody is invited yet.",
+      "inviteOnly": "Invited players only.",
+      "notInvited": "This lobby is for invited players only. Ask its host for an invite."
     },
     "activity": {
       "starting": "Signing you in through Discord…",

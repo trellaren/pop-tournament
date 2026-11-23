@@ -7,6 +7,7 @@ import {
   MIN_TEAM_SIZE,
   ROLL_OUT_RULES,
   SIDES,
+  VISIBILITIES,
   WINGMAN_TEAM_SIZE,
   done,
   refuse,
@@ -18,8 +19,10 @@ import {
   type LobbySettings,
   type Outcome,
 } from './lobby';
+import { withInvited } from './invites';
 
 export interface SettingsChange {
+  visibility?: string;
   format?: string;
   teamSize?: number;
   rollOut?: string;
@@ -44,12 +47,15 @@ export function setSettings(lobby: Lobby, actor: Actor, change: SettingsChange):
   const mapMethod = MAP_METHODS.find((method) => method === change.mapMethod);
   if (change.rollOut !== undefined && !rollOut) return refuse('invalid_settings');
   if (change.mapMethod !== undefined && !mapMethod) return refuse('invalid_settings');
+  const visibility = VISIBILITIES.find((v) => v === change.visibility);
+  if (change.visibility !== undefined && !visibility) return refuse('invalid_settings');
   const format = FORMATS.find((f) => f === change.format);
   if (change.format !== undefined && !format) return refuse('invalid_settings');
   // A new format brings its own team size and maps unless the same change names them.
   const from = format && format !== before.format ? formatBrings(format, before) : before;
   const next: LobbySettings = {
     format: format ?? before.format,
+    visibility: visibility ?? before.visibility,
     teamSize: change.teamSize ?? from.teamSize,
     rollOut: rollOut ?? before.rollOut,
     mapMethod: mapMethod ?? before.mapMethod,
@@ -83,11 +89,24 @@ export function setSettings(lobby: Lobby, actor: Actor, change: SettingsChange):
   if (next.poolId !== before.poolId) {
     events.push({ type: 'map_pool', actorId, data: { poolId: next.poolId } });
   }
+  let invited = lobby.invited;
+  if (next.visibility !== before.visibility) {
+    events.push({ type: 'visibility', actorId, data: { visibility: next.visibility } });
+    // Everyone already in stays welcome: they can leave and come back.
+    if (next.visibility === 'invite') {
+      const all = withInvited(
+        lobby,
+        lobby.players.map((p) => p.playerId)
+      );
+      if (!all) return refuse('invite_limit');
+      invited = all;
+    }
+  }
   if (events.length === 0) return refuse('no_change');
   // Another format or pool has other maps, so a picked map no longer stands.
   const mapsChanged = next.format !== before.format || next.poolId !== before.poolId;
   return done(
-    { ...lobby, settings: next, pickedMap: mapsChanged ? null : lobby.pickedMap },
+    { ...lobby, settings: next, invited, pickedMap: mapsChanged ? null : lobby.pickedMap },
     events
   );
 }

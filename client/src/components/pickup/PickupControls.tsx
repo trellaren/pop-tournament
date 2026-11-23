@@ -12,6 +12,7 @@ interface PickupControlsProps {
 
 const TEAM_SIZES = { classic: [1, 2, 3, 4, 5], wingman: [1, 2] };
 const FORMATS = ['classic', 'wingman'] as const;
+const VISIBILITIES = ['open', 'invite'] as const;
 const RANDOM_MAP = 'random';
 const DEFAULT_POOL = 'default';
 const METHODS = ['pick', 'veto', 'vote'] as const;
@@ -87,6 +88,26 @@ export function PickupControls({ lobby, busy, onCommand }: PickupControlsProps) 
           {METHODS.map((method) => (
             <MenuItem key={method} value={method}>
               {t(`pickup.settings.method.${method}`)}
+            </MenuItem>
+          ))}
+        </TextField>
+      )}
+      {can.set_settings && (
+        <TextField
+          select
+          size="small"
+          label={t('pickup.settings.visibility')}
+          value={lobby.settings.visibility}
+          disabled={busy}
+          onChange={(event) => {
+            const visibility = VISIBILITIES.find((v) => v === event.target.value);
+            if (visibility) onCommand({ type: 'set_settings', visibility });
+          }}
+          slotProps={{ htmlInput: { 'data-testid': 'pickup-visibility' } }}
+        >
+          {VISIBILITIES.map((visibility) => (
+            <MenuItem key={visibility} value={visibility}>
+              {t(`pickup.settings.visibilityName.${visibility}`)}
             </MenuItem>
           ))}
         </TextField>

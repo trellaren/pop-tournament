@@ -6,7 +6,8 @@ import {
   type Page,
 } from '@playwright/test';
 import { signInAsPlayer, signInAsPlayerViaRequest, signInViaRequest } from '../helpers/auth';
-import { BASE_URL, TAGS, type LobbyBody } from './pickup/fixture';
+import { BASE_URL, TAGS, type LobbyBody, type PickupFixture } from './pickup/fixture';
+import { invitesTests } from './pickup/invites';
 import { wingmanTests } from './pickup/wingman';
 
 /**
@@ -352,7 +353,7 @@ test.describe.serial('pickup lobby', () => {
     await admin.dispose();
   });
 
-  wingmanTests({
+  const fixture: PickupFixture = {
     steamIds,
     contexts,
     view,
@@ -362,7 +363,9 @@ test.describe.serial('pickup lobby', () => {
       expect(opened.ok(), await opened.text()).toBe(true);
       lobbyId = ((await opened.json()) as { id: string }).id;
     },
-  });
+  };
+  wingmanTests(fixture);
+  invitesTests(fixture);
 
   test('the page: open, join from a second browser, scramble, close', TAGS, async ({ browser }) => {
     const hostContext = await browser.newContext({ baseURL: BASE_URL });
