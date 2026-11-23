@@ -66,7 +66,18 @@
       "start": "Start",
       "startHint": "Both teams must be full to start.",
       "cancelStart": "Cancel start",
-      "cancelMatch": "Cancel match"
+      "cancelMatch": "Cancel match",
+      "pickTeams": "Pick teams",
+      "captains": {
+        "random": "Captains at random",
+        "rating": "Captains by rating",
+        "host": "First player of each team as captain"
+      },
+      "cancel": {
+        "drafting": "Cancel draft",
+        "ready_check": "Cancel start",
+        "in_match": "Cancel match"
+      }
     },
     "log": {
       "title": "Lobby log",
@@ -99,7 +110,12 @@
       "rolled_in": "{{player}} rolled in to {{place}}.",
       "rule_losers": "{{actor}} set roll-out to the losing team.",
       "rule_most_played": "{{actor}} set roll-out to whoever has played longest.",
-      "closed_idle": "The lobby closed after two hours with nothing happening."
+      "closed_idle": "The lobby closed after two hours with nothing happening.",
+      "draft_started": "{{actor}} started a captain draft.",
+      "picked": "{{actor}} picked {{player}} for {{place}}.",
+      "picked_auto": "Time ran out: {{player}} goes to {{place}}.",
+      "draft_finished": "The draft is done. Teams are locked.",
+      "draft_cancelled": "The draft was cancelled."
     },
     "refusal": {
       "closed": "This lobby is closed.",
@@ -119,7 +135,9 @@
       "wrong_state": "That cannot be done right now.",
       "in_match": "Not while the match is running.",
       "teams_not_full": "Both teams must be full first.",
-      "invalid_map": "That map is not in the pool."
+      "invalid_map": "That map is not in the pool.",
+      "not_your_turn": "It is not your pick.",
+      "invalid_captains": "Choose two different players in the lobby as captains."
     },
     "ready": {
       "title": "Ready check",
@@ -141,6 +159,15 @@
       }
     },
     "gamesInRow_one": "{{count}} game in a row",
-    "gamesInRow_other": "{{count}} games in a row"
+    "gamesInRow_other": "{{count}} games in a row",
+    "draft": {
+      "captain": "Captain",
+      "yourPick": "Your pick",
+      "picking": "{{captain}} is picking",
+      "captains": "Captains: {{a}} and {{b}} · {{seconds}} s for this pick",
+      "pool_one": "{{count}} player to pick",
+      "pool_other": "{{count}} players to pick",
+      "pick": "Pick"
+    }
   }
 }

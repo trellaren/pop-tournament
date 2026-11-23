@@ -5,6 +5,8 @@
 import { getGameRatings } from '../gameRatings';
 import {
   allowed,
+  draftPool,
+  turnOf,
   seated,
   waiting,
   type Actor,
@@ -29,6 +31,14 @@ export interface PlayerView {
   ready: boolean;
   /** Matches played in a row without a turn in the waiting room. */
   gamesInRow: number;
+}
+
+export interface DraftView {
+  captains: Record<Side, string>;
+  /** The side whose pick it is. */
+  turn: Side | null;
+  /** The players to pick from, best rated first. */
+  pool: PlayerView[];
 }
 
 export interface MatchView {
@@ -75,6 +85,8 @@ export interface LobbyView {
   deadline: number | null;
   /** The running match; null outside one. */
   match: MatchView | null;
+  /** The running captain draft; null outside one. */
+  draft: DraftView | null;
   teams: Record<Side, PlayerView[]>;
   waiting: PlayerView[];
   log: LogLine[];
@@ -148,6 +160,9 @@ export async function buildView(lobby: Lobby, viewer: Actor): Promise<LobbyView>
           status: matchState?.status ?? 'pending',
           map: matchState?.map ?? null,
         }
+      : null,
+    draft: lobby.draft
+      ? { captains: lobby.draft.captains, turn: turnOf(lobby), pool: draftPool(lobby).map(row) }
       : null,
     teams: {
       a: seated(lobby, 'a').sort(bySeat).map(row),

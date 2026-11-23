@@ -13,7 +13,13 @@ export const LIMITS = { fieldValue: 1024, description: 4096, label: 80, customId
 type Button =
   | { type: 2; style: 1 | 2 | 3 | 4; label: string; custom_id: string; disabled?: boolean }
   | { type: 2; style: 5; label: string; url: string };
-type Row = { type: 1; components: Button[] };
+type Select = {
+  type: 3;
+  custom_id: string;
+  placeholder: string;
+  options: Array<{ label: string; value: string }>;
+};
+type Row = { type: 1; components: Array<Button | Select> };
 type Embed = {
   title: string;
   description: string;
@@ -37,6 +43,8 @@ export type PanelAction =
   | 'lock'
   | 'unlock'
   | 'start'
+  | 'draft'
+  | 'pick'
   | 'cancel';
 
 const ACTIONS: readonly PanelAction[] = [
@@ -50,6 +58,8 @@ const ACTIONS: readonly PanelAction[] = [
   'lock',
   'unlock',
   'start',
+  'draft',
+  'pick',
   'cancel',
 ];
 
@@ -76,9 +86,15 @@ export function parseCustomId(
  */
 export function commandOf(
   action: PanelAction,
-  version: number
-): { command: CommandInput; version?: number } {
+  version: number,
+  /** The chosen value of a menu: the player a captain picks. */
+  value?: string
+): { command: CommandInput; version?: number } | null {
   switch (action) {
+    case 'draft':
+      return { command: { type: 'start_draft', method: 'random' }, version };
+    case 'pick':
+      return value ? { command: { type: 'pick', playerId: value } } : null;
     case 'join_a':
       return { command: { type: 'join', side: 'a' } };
     case 'join_b':
@@ -131,6 +147,16 @@ function listOf(players: PlayerView[], lobby: LobbyView, emptySeats: number): st
 function stateLine(lobby: LobbyView, siteUrl: string): string {
   const mapName = (id: string | null) => lobby.maps.find((m) => m.id === id)?.name ?? id;
   if (lobby.state === 'closed') return 'This lobby is closed.';
+  if (lobby.state === 'drafting' && lobby.draft) {
+    const everyone = [...lobby.teams.a, ...lobby.teams.b, ...lobby.waiting];
+    const nameOf = (id: string) => plainName(everyone.find((p) => p.playerId === id)?.name ?? '');
+    const { captains, turn } = lobby.draft;
+    const until = lobby.deadline === null ? '' : ` Time runs out <t:${lobby.deadline}:R>.`;
+    const picking = turn
+      ? ` **${nameOf(captains[turn])}** picks for Team ${turn.toUpperCase()}.`
+      : '';
+    return `**Captains pick.** ${nameOf(captains.a)} and ${nameOf(captains.b)}.${picking}${until}`;
+  }
   if (lobby.state === 'ready_check') {
     const until = lobby.deadline === null ? '' : ` It ends <t:${lobby.deadline}:R>.`;
     return `**Ready check.** Seated players, press Ready.${until}`;
@@ -189,7 +215,42 @@ function rowsOf(lobby: LobbyView, siteUrl: string): Row[] {
           lobby.teamsLocked
             ? button(lobby, 'unlock', 'Unlock teams', 2)
             : button(lobby, 'lock', 'Lock teams', 2),
+          button(lobby, 'draft', 'Pick teams', 2, seatedCount + lobby.waiting.length < 2),
           button(lobby, 'start', 'Start', 3, !(full('a') && full('b'))),
+        ],
+      },
+      { type: 1, components: links },
+    ];
+  }
+  if (lobby.state === 'drafting') {
+    const pool = (lobby.draft?.pool ?? []).slice(0, 25);
+    const menu: Row[] =
+      pool.length === 0
+        ? []
+        : [
+            {
+              type: 1,
+              components: [
+                {
+                  type: 3,
+                  custom_id: customId(lobby.id, 'pick', lobby.version),
+                  placeholder: 'Captain: pick a player',
+                  options: pool.map((p) => ({
+                    label: `${plainName(p.name)}${p.rating === null ? '' : ` · ${p.rating}`}`,
+                    value: p.playerId,
+                  })),
+                },
+              ],
+            },
+          ];
+    return [
+      ...menu,
+      {
+        type: 1,
+        components: [
+          button(lobby, 'join_waiting', 'Join waiting room', 2),
+          button(lobby, 'leave', 'Leave', 2),
+          button(lobby, 'cancel', 'Cancel draft', 4),
         ],
       },
       { type: 1, components: links },
@@ -255,7 +316,10 @@ export function panelMessage(lobby: LobbyView, siteUrl: string): PanelMessage {
                 inline: true,
               },
               {
-                name: `Waiting room ${lobby.waiting.length}`,
+                name:
+                  lobby.state === 'drafting'
+                    ? `To pick ${lobby.waiting.length}`
+                    : `Waiting room ${lobby.waiting.length}`,
                 value: listOf(lobby.waiting, lobby, 0),
                 inline: false,
               },

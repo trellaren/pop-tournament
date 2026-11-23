@@ -13,6 +13,7 @@ import { paths } from '../paths';
 import { apiErrorMessage } from '../utils/api';
 import { pageTitle } from '../utils/pageTitle';
 import { PickupControls } from '../components/pickup/PickupControls';
+import { PickupDraftBanner, PickupDraftPool } from '../components/pickup/PickupDraft';
 import { PickupLog } from '../components/pickup/PickupLog';
 import { PickupStatus } from '../components/pickup/PickupStatus';
 import { PickupTeamPanel } from '../components/pickup/PickupTeamPanel';
@@ -86,6 +87,12 @@ export default function PickupLobby() {
         {lobby && lobby.state !== 'closed' && (
           <>
             <PickupStatus lobby={lobby} busy={busy} onCommand={onCommand} onDeadline={reload} />
+            <PickupDraftBanner
+              lobby={lobby}
+              busy={busy}
+              onCommand={onCommand}
+              onDeadline={reload}
+            />
             <Box
               sx={{
                 display: 'grid',
@@ -111,6 +118,14 @@ export default function PickupLobby() {
               />
             </Box>
             <Box sx={{ display: 'grid', gap: 2, mt: 2 }}>
+              {lobby.draft ? (
+                <PickupDraftPool
+                  lobby={lobby}
+                  busy={busy}
+                  onCommand={onCommand}
+                  onDeadline={reload}
+                />
+              ) : null}
               <PickupTeamPanel
                 lobby={lobby}
                 side={null}

@@ -9,7 +9,7 @@ import { resolveViewerIdentity } from '../utils/viewerIdentity';
 import { isSameSiteRequest } from '../utils/accountConnections';
 import { log } from '../utils/logger';
 import { PickupError, pickupService, type CommandInput } from '../services/pickup/pickupService';
-import { ROLL_OUT_RULES, type Actor, type Side } from '../services/pickup/rules';
+import { CAPTAIN_METHODS, ROLL_OUT_RULES, type Actor, type Side } from '../services/pickup/rules';
 import type { Untrusted } from '../utils/untrusted';
 
 const router = Router();
@@ -99,6 +99,18 @@ function settingsCommand(fields: Record<string, Untrusted>): CommandInput {
   };
 }
 
+function draftCommand(fields: Record<string, Untrusted>): CommandInput {
+  const method = CAPTAIN_METHODS.find((m) => m === fields.method);
+  if (!method) throw bad('method must be "random", "rating" or "host"');
+  if (method !== 'host') return { type: 'start_draft', method };
+  return {
+    type: 'start_draft',
+    method,
+    captainA: playerIdOf(fields.captainA),
+    captainB: playerIdOf(fields.captainB),
+  };
+}
+
 /** Read a command from a request body. Anything not understood is refused. */
 export function parseCommand(body: Untrusted): { command: CommandInput; version?: number } {
   if (typeof body !== 'object' || body === null) throw bad('Send a command');
@@ -125,12 +137,15 @@ export function parseCommand(body: Untrusted): { command: CommandInput; version?
         version,
       };
     case 'kick':
+    case 'pick':
     case 'roll_out':
     case 'make_host':
       return { command: { type: fields.type, playerId: playerIdOf(fields.playerId) }, version };
     case 'lock_teams':
       if (typeof fields.locked !== 'boolean') throw bad('locked must be true or false');
       return { command: { type: 'lock_teams', locked: fields.locked }, version };
+    case 'start_draft':
+      return { command: draftCommand(fields), version };
     case 'pick_map':
       if (fields.map !== null && typeof fields.map !== 'string') {
         throw bad('map must be a map id or null');
@@ -232,11 +247,14 @@ router.get(
  *       (`playerId`, `side`), `kick` (`playerId`), `make_host` (`playerId`),
  *       `scramble`, `balance`, `lock_teams` (`locked`), `set_settings`
  *       (`teamSize`, `rollOut`: `most_played` or `losers`), `roll_out`
- *       (`playerId`: to the waiting room, the longest waiter takes the seat), `pick_map` (`map`: a map id, or null to draw one),
+ *       (`playerId`: to the waiting room, the longest waiter takes the seat),
+ *       `start_draft` (`method`: `random`, `rating` or `host` with `captainA`
+ *       and `captainB`; two captains then pick in turn with `pick`
+ *       (`playerId`), 30 seconds a pick), `pick_map` (`map`: a map id, or null to draw one),
  *       `start` (the ready check; both teams must be full), `cancel` (the
  *       ready check or the running match) and `close`. A seated player
  *       answers the ready check with `ready`; when everyone has, the match is
- *       created and waits for a free server. `roll_out`, `scramble`, `balance`, `start`,
+ *       created and waits for a free server. `roll_out`, `start_draft`, `scramble`, `balance`, `start`,
  *       `cancel` and `close` must send the lobby's `version`; a stale one is
  *       refused with 409 `stale`.
  *       Refusals are 409 with a `code` (403 `not_allowed`).
@@ -268,6 +286,12 @@ router.get(
  *               teamSize:
  *                 type: integer
  *               rollOut:
+ *                 type: string
+ *               method:
+ *                 type: string
+ *               captainA:
+ *                 type: string
+ *               captainB:
  *                 type: string
  *               map:
  *                 type: string

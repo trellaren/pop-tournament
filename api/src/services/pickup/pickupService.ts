@@ -12,6 +12,7 @@ import {
   decideSystem,
   newLobby,
   type Actor,
+  type CaptainMethod,
   type Command,
   type Lobby,
   type Effect,
@@ -71,6 +72,8 @@ const REFUSALS: Record<PickupErrorCode, string> = {
   in_match: 'Not while the match is running',
   teams_not_full: 'Both teams must be full first',
   invalid_map: 'That map is not in the pool',
+  not_your_turn: 'It is not your pick',
+  invalid_captains: 'Choose two different players in the lobby as captains',
   not_found: 'No such lobby',
   lobby_exists: 'A lobby is already open',
   in_other_lobby: 'You are already in another lobby',
@@ -82,7 +85,10 @@ function refusal(code: PickupErrorCode): PickupError {
 }
 
 /** A command as the API takes it: Balance's ratings are read here, never sent. */
-export type CommandInput = Exclude<Command, { type: 'balance' }> | { type: 'balance' };
+export type CommandInput =
+  | Exclude<Command, { type: 'balance' | 'start_draft' }>
+  | { type: 'balance' }
+  | { type: 'start_draft'; method: CaptainMethod; captainA?: string; captainB?: string };
 
 /** How long a completed match may wait for its result before the lobby moves on without one. */
 const RESULT_GRACE_SECONDS = 30;
@@ -148,20 +154,24 @@ export class PickupService {
         const other = await openLobbyIdOf(actor.playerId);
         if (other && other !== lobbyId) throw refusal('in_other_lobby');
       }
-      const command: Command =
-        input.type === 'balance'
-          ? {
-              type: 'balance',
-              ratings: await ratingsOf(
-                lobby.players.filter((p) => p.side !== null).map((p) => p.playerId)
-              ),
-            }
-          : input;
+      const command = await this.withRatings(lobby, input);
       const now = this.clock();
       const outcome = decide(lobby, actor, command, { now, random: this.random, version });
       if (!outcome.ok) throw refusal(outcome.code);
       await this.apply(lobby, outcome, now);
     });
+  }
+
+  /** Balance and the draft go by ratings, which are read here and never sent by a client. */
+  private async withRatings(lobby: Lobby, input: CommandInput): Promise<Command> {
+    if (input.type === 'balance') {
+      const seatedIds = lobby.players.filter((p) => p.side !== null).map((p) => p.playerId);
+      return { type: 'balance', ratings: await ratingsOf(seatedIds) };
+    }
+    if (input.type === 'start_draft') {
+      return { ...input, ratings: await ratingsOf(lobby.players.map((p) => p.playerId)) };
+    }
+    return input;
   }
 
   /** Write a decided change, tell the pages, then do what it asked for. */
@@ -178,7 +188,7 @@ export class PickupService {
   }
 
   private async run(lobby: Lobby, effect: Effect, now: number): Promise<void> {
-    if (effect.type === 'ready_timer') {
+    if (effect.type === 'ready_timer' || effect.type === 'pick_timer') {
       const wait = Math.max(0, effect.deadline - now) * 1000 + 500;
       setTimeout(() => void this.refresh(lobby.id), wait).unref();
       return;
@@ -222,6 +232,10 @@ export class PickupService {
       if (touched !== null && this.clock() - touched >= IDLE_SECONDS) {
         return this.system(lobby, { type: 'idle_timeout' });
       }
+    }
+    if (lobby.state === 'drafting' && lobby.deadline !== null && this.clock() >= lobby.deadline) {
+      // One pick per overdue deadline; the next pick gets its own timer.
+      return this.system(lobby, { type: 'pick_timeout', deadline: lobby.deadline });
     }
     if (
       lobby.state === 'ready_check' &&

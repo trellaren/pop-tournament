@@ -39,6 +39,7 @@ interface LobbyBody {
     pickedMap: string | null;
     maps: Array<{ id: string }>;
     match: { slug: string; matchNo: number; status: string; map: string | null } | null;
+    draft: { turn: Side | null; pool: Array<{ playerId: string }> } | null;
     me: string | null;
     can: Record<string, boolean>;
   };
@@ -186,6 +187,45 @@ test.describe.serial('pickup lobby', () => {
     const reopened = await contexts[2].post('/api/pickup', { data: {} });
     expect(reopened.ok()).toBe(true);
     lobbyId = ((await reopened.json()) as { id: string }).id;
+  });
+
+  test('captain draft: captains pick in turn and the teams lock', TAGS, async () => {
+    // Player 3 hosts on Team A; players 1 and 2 are to pick.
+    expect((await send(0, { type: 'join', side: null })).ok()).toBe(true);
+    expect((await send(1, { type: 'join', side: null })).ok()).toBe(true);
+    let lobby = await view(2);
+    const draft = {
+      type: 'start_draft',
+      method: 'host',
+      captainA: steamIds[2],
+      captainB: steamIds[0],
+      version: lobby.version,
+    };
+    expect((await send(0, draft)).status()).toBe(403);
+    expect((await send(2, draft)).ok()).toBe(true);
+    lobby = await view(0);
+    expect(lobby.state).toBe('drafting');
+    expect(lobby.draft?.turn).toBe('a');
+    expect(lobby.draft?.pool.map((p) => p.playerId)).toEqual([steamIds[1]]);
+    expect(lobby.can.pick).toBe(false);
+    const early = await send(0, { type: 'pick', playerId: steamIds[1] });
+    expect(((await early.json()) as { code: string }).code).toBe('not_your_turn');
+    expect((await send(2, { type: 'pick', playerId: steamIds[1] })).ok()).toBe(true);
+
+    lobby = await view(2);
+    expect(lobby.state).toBe('gathering');
+    expect(lobby.teamsLocked).toBe(true);
+    expect(lobby.teams.a.map((p) => p.playerId).sort()).toEqual([steamIds[1], steamIds[2]].sort());
+    expect(lobby.teams.b.map((p) => p.playerId)).toEqual([steamIds[0]]);
+    const types = lobby.log.map((line) => line.type);
+    for (const type of ['draft_started', 'picked', 'draft_finished']) {
+      expect(types).toContain(type);
+    }
+
+    // Back to the host alone, teams open, for the next test.
+    expect((await send(2, { type: 'lock_teams', locked: false })).ok()).toBe(true);
+    expect((await send(0, { type: 'leave' })).ok()).toBe(true);
+    expect((await send(1, { type: 'leave' })).ok()).toBe(true);
   });
 
   test('Start: the ready check, a match on the platform, its result', TAGS, async () => {
