@@ -13,7 +13,13 @@ import type {
   LobbyState,
   Side,
 } from './rules';
-import { DEFAULT_TEAM_SIZE, MAX_TEAM_SIZE, MIN_TEAM_SIZE } from './rules';
+import {
+  DEFAULT_TEAM_SIZE,
+  MAX_TEAM_SIZE,
+  MIN_TEAM_SIZE,
+  ROLL_OUT_RULES,
+  type RollOutRule,
+} from './rules';
 import type { Untrusted } from '../../utils/untrusted';
 
 export const PICKUP_GAME = 'cs2';
@@ -41,6 +47,7 @@ interface PlayerRow {
   joined_at: number;
   waiting_since: number | null;
   ready: boolean;
+  games_in_row: number;
 }
 
 export interface StoredEvent {
@@ -59,16 +66,20 @@ export interface PlayerName {
 
 function parseSettings(raw: string): LobbySettings {
   let teamSize = DEFAULT_TEAM_SIZE;
+  let rollOut: RollOutRule = 'most_played';
   try {
     const parsed: Untrusted = JSON.parse(raw);
     if (typeof parsed === 'object' && parsed !== null && 'teamSize' in parsed) {
       const size = Number(parsed.teamSize);
       if (Number.isInteger(size) && size >= MIN_TEAM_SIZE && size <= MAX_TEAM_SIZE) teamSize = size;
     }
+    if (typeof parsed === 'object' && parsed !== null && 'rollOut' in parsed) {
+      rollOut = ROLL_OUT_RULES.find((rule) => rule === parsed.rollOut) ?? rollOut;
+    }
   } catch {
     // An unreadable value reads as the defaults.
   }
-  return { teamSize };
+  return { teamSize, rollOut };
 }
 
 function parseEventData(raw: string): EventData {
@@ -106,6 +117,7 @@ function toPlayer(row: PlayerRow): LobbyPlayer {
     joinedAt: Number(row.joined_at),
     waitingSince: row.waiting_since === null ? null : Number(row.waiting_since),
     ready: Boolean(row.ready),
+    gamesInRow: Number(row.games_in_row),
   };
 }
 
@@ -130,7 +142,7 @@ const LOBBY_COLUMNS =
 
 async function playersOf(lobbyId: string): Promise<PlayerRow[]> {
   return db.queryAsync<PlayerRow>(
-    `SELECT player_id, side, joined_at, waiting_since, ready
+    `SELECT player_id, side, joined_at, waiting_since, ready, games_in_row
        FROM pickup_lobby_players WHERE lobby_id = ? ORDER BY joined_at, player_id`,
     [lobbyId]
   );
@@ -186,9 +198,9 @@ async function writePlayersAndEvents(
   await client.query('DELETE FROM pickup_lobby_players WHERE lobby_id = $1', [lobby.id]);
   for (const p of lobby.players) {
     await client.query(
-      `INSERT INTO pickup_lobby_players (lobby_id, player_id, side, joined_at, waiting_since, ready)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [lobby.id, p.playerId, p.side, p.joinedAt, p.waitingSince, p.ready]
+      `INSERT INTO pickup_lobby_players (lobby_id, player_id, side, joined_at, waiting_since, ready, games_in_row)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [lobby.id, p.playerId, p.side, p.joinedAt, p.waitingSince, p.ready, p.gamesInRow]
     );
   }
   for (const event of events) {
@@ -238,7 +250,8 @@ export async function saveLobby(
       `UPDATE pickup_lobbies
           SET state = $1, host_id = $2, version = $3, settings = $4, teams_locked = $5,
               closed_at = CASE WHEN $1 = 'closed' THEN $6::integer ELSE closed_at END,
-              picked_map = $9, deadline_at = $10, match_count = $11, match_slug = $12
+              picked_map = $9, deadline_at = $10, match_count = $11, match_slug = $12,
+              updated_at = $6::integer
         WHERE id = $7 AND version = $8`,
       [
         lobby.state,
@@ -363,4 +376,13 @@ export async function endPickupMatch(slug: string, result: string, now: number):
     'UPDATE pickup_matches SET result = ?, ended_at = ? WHERE match_slug = ? AND result IS NULL',
     [result, now, slug]
   );
+}
+
+/** When a lobby last changed (epoch seconds); its creation when it never has. */
+export async function lobbyTouchedAt(id: string): Promise<number | null> {
+  const row = await db.queryOneAsync<{ at: number | null }>(
+    'SELECT COALESCE(updated_at, created_at) AS at FROM pickup_lobbies WHERE id = ?',
+    [id]
+  );
+  return row?.at == null ? null : Number(row.at);
 }

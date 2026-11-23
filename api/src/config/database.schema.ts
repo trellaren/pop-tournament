@@ -1341,14 +1341,15 @@ export function getSchemaSQL(): string {
       state TEXT NOT NULL, -- 'gathering' | 'ready_check' | 'in_match' | 'closed'
       host_id TEXT NOT NULL,
       version INTEGER NOT NULL DEFAULT 1, -- goes up by one with every change
-      settings TEXT NOT NULL, -- JSON { teamSize }
+      settings TEXT NOT NULL, -- JSON { teamSize, rollOut }
       teams_locked BOOLEAN NOT NULL DEFAULT FALSE,
       created_at INTEGER NOT NULL,
       closed_at INTEGER,
       picked_map TEXT, -- the map the host picked; NULL draws one at Start
       deadline_at INTEGER, -- when the ready check ends; NULL outside one
       match_count INTEGER NOT NULL DEFAULT 0, -- matches this lobby has started
-      match_slug TEXT -- the running match; NULL outside one
+      match_slug TEXT, -- the running match; NULL outside one
+      updated_at INTEGER -- when the lobby last changed; NULL = never since it opened
     );
     CREATE UNIQUE INDEX IF NOT EXISTS idx_pickup_lobbies_open ON pickup_lobbies(game, mode) WHERE state <> 'closed';
 
@@ -1359,6 +1360,7 @@ export function getSchemaSQL(): string {
       joined_at INTEGER NOT NULL,
       waiting_since INTEGER, -- NULL while seated
       ready BOOLEAN NOT NULL DEFAULT FALSE, -- pressed Ready in the running ready check
+      games_in_row INTEGER NOT NULL DEFAULT 0, -- matches played in a row without a turn in the waiting room
       PRIMARY KEY (lobby_id, player_id)
     );
     CREATE INDEX IF NOT EXISTS idx_pickup_lobby_players_player ON pickup_lobby_players(player_id);

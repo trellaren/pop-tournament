@@ -28,8 +28,11 @@ interface LobbyBody {
     version: number;
     hostId: string;
     teamsLocked: boolean;
-    settings: { teamSize: number };
-    teams: Record<Side, Array<{ playerId: string; name: string; isHost: boolean; ready: boolean }>>;
+    settings: { teamSize: number; rollOut: string };
+    teams: Record<
+      Side,
+      Array<{ playerId: string; name: string; isHost: boolean; ready: boolean; gamesInRow: number }>
+    >;
     waiting: Array<{ playerId: string }>;
     log: Array<{ type: string; data: Record<string, string | number | boolean | null> }>;
     deadline: number | null;
@@ -219,19 +222,48 @@ test.describe.serial('pickup lobby', () => {
     const leaving = await send(0, { type: 'leave' });
     expect(((await leaving.json()) as { code: string }).code).toBe('in_match');
 
-    // Team B wins: the lobby gathers again with the same teams.
+    // Player 2 waits while the match runs; under "losing team" the loser makes way.
+    expect((await send(1, { type: 'join', side: null })).ok()).toBe(true);
+    expect((await send(2, { type: 'set_settings', rollOut: 'bogus' })).status()).toBe(400);
+
+    // Team B wins: the lobby gathers again, and the longest waiter rolls in.
     const end = { slug, result: { winner: 'team2', team1Score: 0, team2Score: 1, games: [] } };
     expect((await admin.post('/api/test/series-result', { data: end })).ok()).toBe(true);
     await expect.poll(async () => (await view(2)).state).toBe('gathering');
     lobby = await view(2);
     expect(lobby.match).toBeNull();
-    expect(lobby.teams.b.map((p) => p.playerId)).toEqual([steamIds[0]]);
     const ended = lobby.log.find((line) => line.type === 'match_ended');
     expect(ended?.data.winner).toBe('b');
+    const seatedNow = [...lobby.teams.a, ...lobby.teams.b].map((p) => p.playerId);
+    expect(seatedNow).toHaveLength(2);
+    expect(seatedNow).toContain(steamIds[1]);
+    expect(lobby.waiting).toHaveLength(1);
+    const types = lobby.log.map((line) => line.type);
+    expect(types).toContain('rolled_out');
+    expect(types).toContain('rolled_in');
+    const stayed = [...lobby.teams.a, ...lobby.teams.b].find((p) => p.playerId !== steamIds[1]);
+    expect(stayed?.gamesInRow).toBe(1);
+
+    // Roll-out by hand puts the newcomer back in the waiting room and the waiter back in.
+    expect(
+      (await send(2, { type: 'roll_out', playerId: steamIds[1], version: lobby.version })).ok()
+    ).toBe(true);
+    expect((await send(1, { type: 'leave' })).ok()).toBe(true);
+    expect((await send(2, { type: 'set_settings', rollOut: 'losers' })).ok()).toBe(true);
+    lobby = await view(2);
+    expect(lobby.settings.rollOut).toBe('losers');
+    expect(lobby.waiting).toHaveLength(0);
+    expect([...lobby.teams.a, ...lobby.teams.b].map((p) => p.playerId).sort()).toEqual(
+      [steamIds[0], steamIds[2]].sort()
+    );
 
     // A second match, cancelled by the host: the platform's match is cancelled too.
     expect((await send(2, { type: 'start', version: lobby.version })).ok()).toBe(true);
-    expect((await send(0, { type: 'ready' })).ok()).toBe(true);
+    lobby = await view(2);
+    const unready = [...lobby.teams.a, ...lobby.teams.b].find((p) => !p.ready);
+    expect((await send(steamIds.indexOf(unready?.playerId ?? ''), { type: 'ready' })).ok()).toBe(
+      true
+    );
     lobby = await view(2);
     const second = lobby.match?.slug ?? '';
     expect(second).toMatch(/-2$/);

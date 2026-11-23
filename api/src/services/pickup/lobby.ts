@@ -26,10 +26,19 @@ export interface LobbyPlayer {
   waitingSince: number | null;
   /** Pressed Ready in the running ready check. */
   ready: boolean;
+  /** Matches played in a row without going to the waiting room. */
+  gamesInRow: number;
 }
+
+/** Who goes out after a match while others wait: those who played longest, or the losing team. */
+export type RollOutRule = 'most_played' | 'losers';
+export const ROLL_OUT_RULES: readonly RollOutRule[] = ['most_played', 'losers'];
+/** A gathering lobby nobody has touched for this long closes. */
+export const IDLE_SECONDS = 2 * 60 * 60;
 
 export interface LobbySettings {
   teamSize: number;
+  rollOut: RollOutRule;
 }
 
 export interface Lobby {
@@ -65,7 +74,8 @@ export type Command =
   | { type: 'scramble' }
   | { type: 'balance'; ratings: Readonly<Record<string, number>> }
   | { type: 'lock_teams'; locked: boolean }
-  | { type: 'set_settings'; teamSize: number }
+  | { type: 'set_settings'; teamSize?: number; rollOut?: RollOutRule }
+  | { type: 'roll_out'; playerId: string }
   | { type: 'pick_map'; map: string | null }
   | { type: 'start' }
   | { type: 'ready' }
@@ -79,7 +89,8 @@ export type SystemCommand =
   | { type: 'ready_timeout'; deadline: number }
   | { type: 'match_ended'; slug: string; winner: Side | null }
   | { type: 'match_cancelled'; slug: string }
-  | { type: 'match_failed'; slug: string };
+  | { type: 'match_failed'; slug: string }
+  | { type: 'idle_timeout' };
 
 export type RefusalCode =
   | 'closed'
@@ -139,13 +150,22 @@ export function newLobby(id: string, hostId: string, now: number): Lobby {
     state: 'gathering',
     hostId,
     version: 1,
-    settings: { teamSize: DEFAULT_TEAM_SIZE },
+    settings: { teamSize: DEFAULT_TEAM_SIZE, rollOut: 'most_played' },
     teamsLocked: false,
     pickedMap: null,
     deadline: null,
     matchNo: 0,
     matchSlug: null,
-    players: [{ playerId: hostId, side: 'a', joinedAt: now, waitingSince: null, ready: false }],
+    players: [
+      {
+        playerId: hostId,
+        side: 'a',
+        joinedAt: now,
+        waitingSince: null,
+        ready: false,
+        gamesInRow: 0,
+      },
+    ],
   };
 }
 
@@ -176,7 +196,14 @@ export function withPlayer(lobby: Lobby, next: LobbyPlayer): Lobby {
 }
 
 export function place(player: LobbyPlayer, side: Side | null, now: number): LobbyPlayer {
-  return { ...player, side, waitingSince: side === null ? now : null, ready: false };
+  return {
+    ...player,
+    side,
+    waitingSince: side === null ? now : null,
+    ready: false,
+    // The count is of matches in a row: a turn in the waiting room starts it again.
+    gamesInRow: side === null ? 0 : player.gamesInRow,
+  };
 }
 
 /** Back to gathering: no ready check, no match, nobody marked ready. */

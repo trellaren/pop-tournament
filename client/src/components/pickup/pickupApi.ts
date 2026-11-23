@@ -6,6 +6,8 @@ import type { Untrusted } from '../../utils/untrusted';
 
 export type Side = 'a' | 'b';
 
+export type PickupRollOut = 'most_played' | 'losers';
+
 export type PickupCommandType =
   | 'join'
   | 'leave'
@@ -16,6 +18,7 @@ export type PickupCommandType =
   | 'balance'
   | 'lock_teams'
   | 'set_settings'
+  | 'roll_out'
   | 'pick_map'
   | 'start'
   | 'ready'
@@ -29,6 +32,7 @@ export interface PickupPlayer {
   rating: number | null;
   isHost: boolean;
   ready: boolean;
+  gamesInRow: number;
 }
 
 export interface PickupMatch {
@@ -54,7 +58,7 @@ export interface PickupLobby {
   version: number;
   hostId: string;
   teamsLocked: boolean;
-  settings: { teamSize: number };
+  settings: { teamSize: number; rollOut: PickupRollOut };
   pickedMap: string | null;
   maps: Array<{ id: string; name: string }>;
   deadline: number | null;
@@ -84,7 +88,8 @@ export type PickupCommand =
   | { type: 'scramble'; version: number }
   | { type: 'balance'; version: number }
   | { type: 'lock_teams'; locked: boolean }
-  | { type: 'set_settings'; teamSize: number }
+  | { type: 'set_settings'; teamSize?: number; rollOut?: PickupRollOut }
+  | { type: 'roll_out'; playerId: string; version: number }
   | { type: 'pick_map'; map: string | null }
   | { type: 'start'; version: number }
   | { type: 'ready' }

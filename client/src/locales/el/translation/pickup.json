@@ -40,7 +40,8 @@
         "b": "Seat on B"
       },
       "makeHost": "Make host",
-      "kick": "Kick"
+      "kick": "Kick",
+      "rollOut": "Roll out"
     },
     "settings": {
       "title": "Match settings",
@@ -48,7 +49,13 @@
       "versus": "{{size}}v{{size}}",
       "map": "Map",
       "randomMap": "Random map",
-      "mapIs": "Map: {{map}}"
+      "mapIs": "Map: {{map}}",
+      "rollOut": "After a match, who rolls out",
+      "rollOutIs": "Rolls out: {{rule}}",
+      "rollOutRule": {
+        "most_played": "Longest on the server",
+        "losers": "Losing team"
+      }
     },
     "controls": {
       "scramble": "Scramble",
@@ -87,7 +94,12 @@
       },
       "match_drawn": "Match {{number}} is over.",
       "match_cancelled": "Match {{number}} was cancelled.",
-      "match_failed": "Match {{number}} could not be started."
+      "match_failed": "Match {{number}} could not be started.",
+      "rolled_out": "{{player}} rolled out to the waiting room.",
+      "rolled_in": "{{player}} rolled in to {{place}}.",
+      "rule_losers": "{{actor}} set roll-out to the losing team.",
+      "rule_most_played": "{{actor}} set roll-out to whoever has played longest.",
+      "closed_idle": "The lobby closed after two hours with nothing happening."
     },
     "refusal": {
       "closed": "This lobby is closed.",
@@ -127,6 +139,8 @@
         "live": "The match is live.",
         "completed": "The match is over."
       }
-    }
+    },
+    "gamesInRow_one": "{{count}} game in a row",
+    "gamesInRow_other": "{{count}} games in a row"
   }
 }

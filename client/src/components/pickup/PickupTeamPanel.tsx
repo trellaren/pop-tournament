@@ -80,7 +80,24 @@ export function PickupTeamPanel({ lobby, side, viewerId, busy, onCommand }: Pick
               {player.rating}
             </Typography>
           )}
+          {side !== null && player.gamesInRow > 0 && (
+            <Typography variant="caption" color="text.secondary">
+              {t('pickup.gamesInRow', { count: player.gamesInRow })}
+            </Typography>
+          )}
           <Box sx={{ flex: 1 }} />
+          {lobby.can.roll_out && side !== null && lobby.waiting.length > 0 && (
+            <Button
+              size="small"
+              disabled={busy}
+              data-testid={`pickup-roll-out-${player.playerId}`}
+              onClick={() =>
+                onCommand({ type: 'roll_out', playerId: player.playerId, version: lobby.version })
+              }
+            >
+              {t('pickup.row.rollOut')}
+            </Button>
+          )}
           {lobby.can.move && side !== null && roomOn(OTHER[side]) && (
             <Button
               size="small"
