@@ -22,13 +22,13 @@ Matchmaking (`docs/design/matchmaking.md`) is a queue: strangers press Find
 match and the platform builds the lobby. Pickup is the opposite: the players
 are known first, and people choose the teams.
 
-| | Matchmaking | Pickup |
-|---|---|---|
-| Who plays | Whoever is queued | Whoever joined the lobby |
-| Teams | Balanced by the platform | Sides chosen, scrambled, balanced or drafted |
-| How many | One lobby per ten players | One open lobby; extra players wait |
-| After the match | Lobby is finished | Same lobby continues, players rotate |
-| Rating | `mm_ratings` changes | No rating change (question 6) |
+|                 | Matchmaking               | Pickup                                       |
+| --------------- | ------------------------- | -------------------------------------------- |
+| Who plays       | Whoever is queued         | Whoever joined the lobby                     |
+| Teams           | Balanced by the platform  | Sides chosen, scrambled, balanced or drafted |
+| How many        | One lobby per ten players | One open lobby; extra players wait           |
+| After the match | Lobby is finished         | Same lobby continues, players rotate         |
+| Rating          | `mm_ratings` changes      | No rating change (question 6)                |
 
 The two do not share tables. Pickup does not touch the `mm_*` tables or
 `matchmakingService`.
@@ -41,13 +41,13 @@ The two do not share tables. Pickup does not touch the `mm_*` tables or
   second Steam link. A player's verified Discord account comes from
   `discordIdOf(playerId)` (`api/src/services/notifyChannels.ts`).
 - **Standalone matches.** Start calls `matchService.createMatch(config,
-  baseUrl, null)` with both rosters by SteamID, as matchmaking's `startMatch`
+baseUrl, null)` with both rosters by SteamID, as matchmaking's `startMatch`
   does, then sets `matches.source = 'pickup'`. The slug is `pu-<lobby>-<n>`.
 - **Server allocation.** `scheduler.tryImmediateAllocation()` puts the match
   on a free server, or it waits in line with every other standalone match.
   Ready Up whitelists the roster and seats each player on their team.
 - **Map pools and veto.** `getIntegration('cs2').matchmakingMapPool(mode,
-  poolId)` gives the maps. The CS2 veto already works for a standalone match.
+poolId)` gives the maps. The CS2 veto already works for a standalone match.
 - **Ratings and balancing.** `getGameRatings(playerIds, 'cs2')` for the
   number shown on each row, and `teamBalancingService.balanceTeams` for
   Balance teams.
@@ -128,12 +128,12 @@ win.
 New tables, all prefixed `pickup_`, added to `getSchemaSQL()` in
 `api/src/config/database.schema.ts` in the house style:
 
-| Table | Holds |
-|---|---|
-| `pickup_lobbies` | `id`, `game`, `mode`, `state`, `host_id`, `version`, `settings` (JSON), `picked_map`, `teams_locked`, `match_slug` (current match), `match_count`, `deadline_at`, `created_at`, `closed_at` |
-| `pickup_lobby_players` | `lobby_id`, `player_id`, `side` (`a`, `b` or null for waiting), `seat`, `ready`, `joined_at`, `waiting_since`, `games_in_row`, `is_captain` |
-| `pickup_events` | `lobby_id`, `seq`, `type`, `actor_id`, `data` (JSON), `created_at`: the lobby log |
-| `pickup_matches` | `lobby_id`, `match_slug`, `n`, the rosters as started, `result` |
+| Table                  | Holds                                                                                                                                                                                       |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pickup_lobbies`       | `id`, `game`, `mode`, `state`, `host_id`, `version`, `settings` (JSON), `picked_map`, `teams_locked`, `match_slug` (current match), `match_count`, `deadline_at`, `created_at`, `closed_at` |
+| `pickup_lobby_players` | `lobby_id`, `player_id`, `side` (`a`, `b` or null for waiting), `seat`, `ready`, `joined_at`, `waiting_since`, `games_in_row`, `is_captain`                                                 |
+| `pickup_events`        | `lobby_id`, `seq`, `type`, `actor_id`, `data` (JSON), `created_at`: the lobby log                                                                                                           |
+| `pickup_matches`       | `lobby_id`, `match_slug`, `n`, the rosters as started, `result`                                                                                                                             |
 
 A partial unique index allows one lobby per mode that is not closed, and one
 open lobby per player.
