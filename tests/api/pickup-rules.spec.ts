@@ -245,7 +245,7 @@ test.describe('pickup rules: start and the match (pure)', () => {
     expect(outcome.lobby.matchNo).toBe(1);
     expect(outcome.lobby.matchSlug).toBe('pu-lobby-00-1');
     expect(outcome.lobby.players.every((p) => !p.ready)).toBe(true);
-    expect(outcome.effects).toEqual([{ type: 'create_match', slug: 'pu-lobby-00-1' }]);
+    expect(outcome.effects).toEqual([{ type: 'create_match', slug: 'pu-lobby-00-1', veto: false }]);
   });
 
   test('the ready check: teams are frozen, a seated player leaving ends it', TAGS, () => {

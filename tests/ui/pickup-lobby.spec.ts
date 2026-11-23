@@ -38,7 +38,14 @@ interface LobbyBody {
     deadline: number | null;
     pickedMap: string | null;
     maps: Array<{ id: string }>;
-    match: { slug: string; matchNo: number; status: string; map: string | null } | null;
+    match: {
+      slug: string;
+      matchNo: number;
+      status: string;
+      map: string | null;
+      vetoing: boolean;
+    } | null;
+    vote: { counts: Record<string, number>; voted: number; voters: number } | null;
     draft: { turn: Side | null; pool: Array<{ playerId: string }> } | null;
     me: string | null;
     can: Record<string, boolean>;
@@ -70,16 +77,30 @@ test.describe.serial('pickup lobby', () => {
       expect(await signInAsPlayerViaRequest(context, steamId, `Pickup ${index + 1}`)).toBe(true);
       contexts.push(context);
     }
+    await closeOpenLobby();
   });
 
-  test.afterAll(async () => {
-    if (lobbyId) {
-      const lobby = await view(0).catch(() => null);
-      if (lobby && lobby.state !== 'closed') {
-        const host = steamIds.indexOf(lobby.hostId);
-        await send(Math.max(host, 0), { type: 'close', version: lobby.version });
-      }
+  /** Close whatever lobby is open (one a failed run left behind, or this run's own). */
+  const closeOpenLobby = async () => {
+    const list = (await (await contexts[0].get('/api/pickup')).json()) as {
+      lobbies: Array<{ id: string; hostId: string }>;
+    };
+    for (const open of list.lobbies) {
+      const host = contexts[Math.max(steamIds.indexOf(open.hostId), 0)];
+      const act = async (type: string) => {
+        const body = (await (await host.get(`/api/pickup/${open.id}`)).json()) as LobbyBody;
+        await host.post(`/api/pickup/${open.id}/commands`, {
+          data: { type, version: body.lobby.version },
+        });
+      };
+      // A draft, ready check, vote or match is cancelled first; then the lobby closes.
+      await act('cancel');
+      await act('close');
     }
+  };
+
+  test.afterAll(async () => {
+    await closeOpenLobby();
     await Promise.all(contexts.map((context) => context.dispose()));
   });
 
@@ -228,6 +249,46 @@ test.describe.serial('pickup lobby', () => {
     expect((await send(1, { type: 'leave' })).ok()).toBe(true);
   });
 
+  test('the map: a vote in the lobby, then a veto on the match', TAGS, async () => {
+    expect((await send(2, { type: 'set_settings', teamSize: 1, mapMethod: 'vote' })).ok()).toBe(
+      true
+    );
+    expect((await send(0, { type: 'join', side: 'b' })).ok()).toBe(true);
+    let lobby = await view(2);
+    const map = lobby.maps[0].id;
+    expect((await send(2, { type: 'start', version: lobby.version })).ok()).toBe(true);
+    expect((await send(0, { type: 'ready' })).ok()).toBe(true);
+    lobby = await view(0);
+    expect(lobby.state).toBe('map_vote');
+    expect(lobby.can.vote_map).toBe(true);
+    expect((await send(0, { type: 'vote_map', map: 'de_no_such_map' })).status()).toBe(409);
+    expect((await send(0, { type: 'vote_map', map })).ok()).toBe(true);
+    expect((await view(2)).vote).toMatchObject({ counts: { [map]: 1 }, voted: 1, voters: 2 });
+    expect((await send(2, { type: 'vote_map', map })).ok()).toBe(true);
+    lobby = await view(2);
+    expect(lobby.state).toBe('in_match');
+    expect(lobby.match?.map).toBe(map);
+    expect(lobby.match?.vetoing).toBe(false);
+    expect((await send(2, { type: 'cancel', version: lobby.version })).ok()).toBe(true);
+
+    // Veto: the match is made with the whole pool and the teams choose on its page.
+    expect((await send(2, { type: 'set_settings', mapMethod: 'veto' })).ok()).toBe(true);
+    lobby = await view(2);
+    expect((await send(2, { type: 'start', version: lobby.version })).ok()).toBe(true);
+    expect((await send(0, { type: 'ready' })).ok()).toBe(true);
+    lobby = await view(2);
+    expect(lobby.state).toBe('in_match');
+    expect(lobby.match?.vetoing).toBe(true);
+    expect(lobby.match?.map).toBeNull();
+    expect((await send(2, { type: 'cancel', version: lobby.version })).ok()).toBe(true);
+
+    // Back to the host alone at 5v5 with the host's pick, for the next test.
+    expect((await send(0, { type: 'leave' })).ok()).toBe(true);
+    expect((await send(2, { type: 'set_settings', teamSize: 5, mapMethod: 'pick' })).ok()).toBe(
+      true
+    );
+  });
+
   test('Start: the ready check, a match on the platform, its result', TAGS, async () => {
     const admin = await playwrightRequest.newContext({ baseURL: BASE_URL });
     expect(await signInViaRequest(admin)).toBe(true);
@@ -255,7 +316,7 @@ test.describe.serial('pickup lobby', () => {
     lobby = await view(0);
     expect(lobby.state).toBe('in_match');
     const slug = lobby.match?.slug ?? '';
-    expect(slug).toMatch(/^pu-[0-9a-f]{8}-1$/);
+    expect(slug).toMatch(/^pu-[0-9a-f]{8}-\d+$/);
     expect(lobby.match?.map).toBe(map);
     const match = await admin.get(`/api/matches/${slug}`);
     expect(match.ok(), await match.text()).toBe(true);
@@ -306,7 +367,7 @@ test.describe.serial('pickup lobby', () => {
     );
     lobby = await view(2);
     const second = lobby.match?.slug ?? '';
-    expect(second).toMatch(/-2$/);
+    expect(second).not.toBe(slug);
     expect((await send(2, { type: 'cancel', version: lobby.version })).ok()).toBe(true);
     lobby = await view(2);
     expect(lobby.state).toBe('gathering');

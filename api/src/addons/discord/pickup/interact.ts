@@ -107,7 +107,7 @@ export async function pickupComponentAnswer(
     parsed.version,
     typeof value === 'string' ? value : undefined
   );
-  if (!meant) return 'Choose a player from the menu.';
+  if (!meant) return 'Choose from the menu.';
   return attempt(async () => {
     await pickupService.command(parsed.lobbyId, actor, meant.command, meant.version);
     return doneText(parsed.action);

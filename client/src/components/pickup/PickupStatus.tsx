@@ -36,7 +36,8 @@ function useSecondsLeft(deadline: number | null, onDeadline: () => void): number
 
 export function PickupStatus({ lobby, busy, onCommand, onDeadline }: PickupStatusProps) {
   const { t } = useTranslation();
-  const left = useSecondsLeft(lobby.state === 'ready_check' ? lobby.deadline : null, onDeadline);
+  const timed = lobby.state === 'ready_check' || lobby.state === 'map_vote';
+  const left = useSecondsLeft(timed ? lobby.deadline : null, onDeadline);
 
   if (lobby.state === 'ready_check') {
     const seated = [...lobby.teams.a, ...lobby.teams.b];
@@ -71,6 +72,34 @@ export function PickupStatus({ lobby, busy, onCommand, onDeadline }: PickupStatu
     );
   }
 
+  if (lobby.state === 'map_vote' && lobby.vote) {
+    const { vote } = lobby;
+    return (
+      <Panel sx={{ p: 2, mb: 2 }} data-testid="pickup-map-vote">
+        <Typography variant="h6" component="h2">
+          {t('pickup.vote.title')}
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+          {t('pickup.vote.progress', { voted: vote.voted, total: vote.voters, seconds: left })}
+        </Typography>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+          {lobby.maps.map((map) => (
+            <Button
+              key={map.id}
+              variant={vote.mine === map.id ? 'contained' : 'outlined'}
+              disabled={busy || !lobby.can.vote_map}
+              data-testid={`pickup-vote-${map.id}`}
+              onClick={() => onCommand({ type: 'vote_map', map: map.id })}
+            >
+              {map.name}
+              {vote.counts[map.id] ? ` · ${vote.counts[map.id]}` : ''}
+            </Button>
+          ))}
+        </Box>
+      </Panel>
+    );
+  }
+
   if (lobby.state === 'in_match' && lobby.match) {
     const { match } = lobby;
     const status = MATCH_STATUSES.has(match.status) ? match.status : 'pending';
@@ -84,7 +113,7 @@ export function PickupStatus({ lobby, busy, onCommand, onDeadline }: PickupStatu
               {mapName ? ` · ${mapName}` : ''}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              {t(`pickup.match.status.${status}`)}
+              {match.vetoing ? t('pickup.match.vetoing') : t(`pickup.match.status.${status}`)}
             </Typography>
           </Box>
           <Button

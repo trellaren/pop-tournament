@@ -9,7 +9,13 @@ import { resolveViewerIdentity } from '../utils/viewerIdentity';
 import { isSameSiteRequest } from '../utils/accountConnections';
 import { log } from '../utils/logger';
 import { PickupError, pickupService, type CommandInput } from '../services/pickup/pickupService';
-import { CAPTAIN_METHODS, ROLL_OUT_RULES, type Actor, type Side } from '../services/pickup/rules';
+import {
+  CAPTAIN_METHODS,
+  MAP_METHODS,
+  ROLL_OUT_RULES,
+  type Actor,
+  type Side,
+} from '../services/pickup/rules';
 import type { Untrusted } from '../utils/untrusted';
 
 const router = Router();
@@ -85,17 +91,28 @@ function playerIdOf(value: Untrusted): string {
 const BAD_ROLL_OUT = 'rollOut must be "most_played" or "losers"';
 
 function settingsCommand(fields: Record<string, Untrusted>): CommandInput {
-  const { teamSize } = fields;
+  const { teamSize, poolId } = fields;
   if (teamSize !== undefined && typeof teamSize !== 'number') {
     throw bad('teamSize must be a number');
   }
   const rollOut = ROLL_OUT_RULES.find((rule) => rule === fields.rollOut);
   if (fields.rollOut !== undefined && !rollOut) throw bad(BAD_ROLL_OUT);
-  if (teamSize === undefined && !rollOut) throw bad('Send teamSize or rollOut');
+  const mapMethod = MAP_METHODS.find((method) => method === fields.mapMethod);
+  if (fields.mapMethod !== undefined && !mapMethod) {
+    throw bad('mapMethod must be "pick", "veto" or "vote"');
+  }
+  if (poolId !== undefined && poolId !== null && typeof poolId !== 'number') {
+    throw bad('poolId must be a pool id or null');
+  }
+  if (teamSize === undefined && !rollOut && !mapMethod && poolId === undefined) {
+    throw bad('Send a setting to change');
+  }
   return {
     type: 'set_settings',
     ...(teamSize === undefined ? {} : { teamSize }),
     ...(rollOut ? { rollOut } : {}),
+    ...(mapMethod ? { mapMethod } : {}),
+    ...(poolId === undefined ? {} : { poolId }),
   };
 }
 
@@ -146,6 +163,9 @@ export function parseCommand(body: Untrusted): { command: CommandInput; version?
       return { command: { type: 'lock_teams', locked: fields.locked }, version };
     case 'start_draft':
       return { command: draftCommand(fields), version };
+    case 'vote_map':
+      if (typeof fields.map !== 'string') throw bad('map must be a map id');
+      return { command: { type: 'vote_map', map: fields.map }, version };
     case 'pick_map':
       if (fields.map !== null && typeof fields.map !== 'string') {
         throw bad('map must be a map id or null');
@@ -246,7 +266,10 @@ router.get(
  *       waiting room), `leave`, and for the host or an admin `move`
  *       (`playerId`, `side`), `kick` (`playerId`), `make_host` (`playerId`),
  *       `scramble`, `balance`, `lock_teams` (`locked`), `set_settings`
- *       (`teamSize`, `rollOut`: `most_played` or `losers`), `roll_out`
+ *       (`teamSize`, `rollOut`: `most_played` or `losers`, `mapMethod`:
+ *       `pick`, `veto` (the two teams veto on the match page) or `vote` (the
+ *       seated players vote with `vote_map` (`map`) after the ready check),
+ *       `poolId`: one of the platform's map pools, or null), `roll_out`
  *       (`playerId`: to the waiting room, the longest waiter takes the seat),
  *       `start_draft` (`method`: `random`, `rating` or `host` with `captainA`
  *       and `captainB`; two captains then pick in turn with `pick`
@@ -287,6 +310,11 @@ router.get(
  *                 type: integer
  *               rollOut:
  *                 type: string
+ *               mapMethod:
+ *                 type: string
+ *               poolId:
+ *                 type: integer
+ *                 nullable: true
  *               method:
  *                 type: string
  *               captainA:

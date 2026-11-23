@@ -4,24 +4,10 @@
  */
 import type { PoolClient } from 'pg';
 import { db } from '../../config/database';
-import type {
-  EventData,
-  Lobby,
-  LobbyEvent,
-  LobbyPlayer,
-  LobbySettings,
-  LobbyState,
-  Side,
-} from './rules';
-import {
-  DEFAULT_TEAM_SIZE,
-  MAX_TEAM_SIZE,
-  MIN_TEAM_SIZE,
-  ROLL_OUT_RULES,
-  type RollOutRule,
-} from './rules';
+import type { EventData, Lobby, LobbyEvent, LobbyPlayer, LobbyState, Side } from './rules';
 import type { Untrusted } from '../../utils/untrusted';
-import { parseDraft } from './draftStore';
+import { mapFromMatch } from '../matchmaking/mapFromMatch';
+import { parseDraft, parseSettings, parseVotes } from './pickupParse';
 
 export const PICKUP_GAME = 'cs2';
 export const PICKUP_MODE = '5v5';
@@ -40,6 +26,7 @@ interface LobbyRow {
   match_count: number;
   match_slug: string | null;
   draft: string | null;
+  votes: string | null;
   created_at: number;
 }
 
@@ -66,24 +53,6 @@ export interface PlayerName {
   avatarUrl: string | null;
 }
 
-function parseSettings(raw: string): LobbySettings {
-  let teamSize = DEFAULT_TEAM_SIZE;
-  let rollOut: RollOutRule = 'most_played';
-  try {
-    const parsed: Untrusted = JSON.parse(raw);
-    if (typeof parsed === 'object' && parsed !== null && 'teamSize' in parsed) {
-      const size = Number(parsed.teamSize);
-      if (Number.isInteger(size) && size >= MIN_TEAM_SIZE && size <= MAX_TEAM_SIZE) teamSize = size;
-    }
-    if (typeof parsed === 'object' && parsed !== null && 'rollOut' in parsed) {
-      rollOut = ROLL_OUT_RULES.find((rule) => rule === parsed.rollOut) ?? rollOut;
-    }
-  } catch {
-    // An unreadable value reads as the defaults.
-  }
-  return { teamSize, rollOut };
-}
-
 function parseEventData(raw: string): EventData {
   const out: Record<string, string | number | boolean | null> = {};
   try {
@@ -107,11 +76,10 @@ function parseEventData(raw: string): EventData {
 
 const sideOf = (raw: string | null): Side | null => (raw === 'a' || raw === 'b' ? raw : null);
 
+const STATES: readonly LobbyState[] = ['drafting', 'ready_check', 'map_vote', 'in_match', 'closed'];
+
 function stateOf(raw: string): LobbyState {
-  if (raw === 'drafting' || raw === 'ready_check' || raw === 'in_match' || raw === 'closed') {
-    return raw;
-  }
-  return 'gathering';
+  return STATES.find((state) => state === raw) ?? 'gathering';
 }
 
 function toPlayer(row: PlayerRow): LobbyPlayer {
@@ -138,12 +106,13 @@ function toLobby(row: LobbyRow, players: PlayerRow[]): Lobby {
     matchNo: Number(row.match_count),
     matchSlug: row.match_slug,
     draft: parseDraft(row.draft),
+    votes: parseVotes(row.votes),
     players: players.map(toPlayer),
   };
 }
 
 const LOBBY_COLUMNS =
-  'id, state, host_id, version, settings, teams_locked, picked_map, deadline_at, match_count, match_slug, draft, created_at';
+  'id, state, host_id, version, settings, teams_locked, picked_map, deadline_at, match_count, match_slug, draft, votes, created_at';
 
 async function playersOf(lobbyId: string): Promise<PlayerRow[]> {
   return db.queryAsync<PlayerRow>(
@@ -255,7 +224,7 @@ export async function saveLobby(
       `UPDATE pickup_lobbies
           SET state = $1, host_id = $2, version = $3, settings = $4, teams_locked = $5,
               closed_at = CASE WHEN $1 = 'closed' THEN $6::integer ELSE closed_at END,
-              picked_map = $9, deadline_at = $10, match_count = $11, match_slug = $12, draft = $13,
+              picked_map = $9, deadline_at = $10, match_count = $11, match_slug = $12, draft = $13, votes = $14,
               updated_at = $6::integer
         WHERE id = $7 AND version = $8`,
       [
@@ -272,6 +241,7 @@ export async function saveLobby(
         lobby.matchNo,
         lobby.matchSlug,
         lobby.draft ? JSON.stringify(lobby.draft) : null,
+        JSON.stringify(lobby.votes),
       ]
     );
     if (updated.rowCount !== 1) throw new Error('Pickup lobby changed while it was being written');
@@ -327,6 +297,8 @@ export interface MatchState {
   /** The platform's status of the match: pending, loaded, live, completed, cancelled… */
   status: string;
   map: string | null;
+  /** The teams are still vetoing the map on the match page. */
+  vetoing: boolean;
   /** When the platform marked it over (epoch seconds), if it has. */
   completedAt: number | null;
 }
@@ -337,8 +309,10 @@ export async function loadMatchState(slug: string): Promise<MatchState | null> {
     status: string;
     map: string | null;
     completed_at: number | null;
+    config: string | null;
+    veto_state: string | null;
   }>(
-    `SELECT m.status, pm.map, m.completed_at FROM matches m
+    `SELECT m.status, pm.map, m.completed_at, m.config, m.veto_state FROM matches m
        LEFT JOIN pickup_matches pm ON pm.match_slug = m.slug
       WHERE m.slug = ?`,
     [slug]
@@ -346,7 +320,9 @@ export async function loadMatchState(slug: string): Promise<MatchState | null> {
   if (!row) return null;
   return {
     status: row.status,
-    map: row.map,
+    // A vetoed match has no map until its veto is done.
+    map: row.map ?? (mapFromMatch(row) || null),
+    vetoing: row.map === null && mapFromMatch(row) === '' && row.status === 'pending',
     completedAt: row.completed_at === null ? null : Number(row.completed_at),
   };
 }
@@ -356,7 +332,7 @@ export async function insertPickupMatch(input: {
   lobbyId: string;
   slug: string;
   matchNo: number;
-  map: string;
+  map: string | null;
   teamA: readonly string[];
   teamB: readonly string[];
   now: number;

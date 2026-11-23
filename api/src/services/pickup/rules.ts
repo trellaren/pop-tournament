@@ -5,20 +5,14 @@
  */
 import {
   MAX_LOBBY_PLAYERS,
-  MAX_TEAM_SIZE,
-  MIN_TEAM_SIZE,
-  ROLL_OUT_RULES,
   READY_SECONDS,
-  SIDES,
   SYSTEM_ACTOR,
   allSeated,
   done,
   hasRoom,
-  matchSlugOf,
   mayManage,
   place,
   refuse,
-  seated,
   teamsFull,
   toGathering,
   withPlayer,
@@ -34,12 +28,15 @@ import {
   type SystemCommand,
 } from './lobby';
 import { cancelDraft, isCaptain, pick, pickTimeout, startDraft, turnOf } from './draft';
+import { launch, voteMap, voteTimeout } from './mapVote';
 import { rollOutAfterMatch, rollOutByHand } from './rollout';
+import { setSettings } from './settings';
 import { balance, scramble } from './teams';
 
 export * from './lobby';
 export { balancedSplit, shuffled } from './teams';
 export { draftPool, sideOfPick, turnOf } from './draft';
+export { voteWinner } from './mapVote';
 
 /** Commands that must name the version they were drawn for. */
 const ONE_SHOT: ReadonlySet<CommandType> = new Set([
@@ -109,6 +106,7 @@ export function allowed(lobby: Lobby, actor: Actor): Record<CommandType, boolean
     pick_map: manage && gathering,
     start_draft: manage && gathering && lobby.players.length >= 2,
     pick: lobby.state === 'drafting' && turnCaptain(lobby) === actor.playerId,
+    vote_map: lobby.state === 'map_vote' && Boolean(mine?.side),
     start: manage && gathering && teamsFull(lobby),
     ready: lobby.state === 'ready_check' && Boolean(mine?.side) && !mine?.ready,
     cancel: manage && lobby.state !== 'gathering',
@@ -159,7 +157,7 @@ function remove(lobby: Lobby, playerId: string, event: LobbyEvent): Outcome {
   if (target.side !== null && lobby.state === 'in_match') return refuse('in_match');
   const events = [event];
   let next = lobby;
-  if (target.side !== null && lobby.state === 'ready_check') {
+  if (target.side !== null && (lobby.state === 'ready_check' || lobby.state === 'map_vote')) {
     next = toGathering(lobby);
     events.push({ type: 'start_cancelled', actorId: event.actorId, data: {} });
   }
@@ -192,56 +190,12 @@ function move(lobby: Lobby, actor: Actor, playerId: string, side: Side | null, c
   ]);
 }
 
-function setSettings(
-  lobby: Lobby,
-  actor: Actor,
-  change: { teamSize?: number; rollOut?: string }
-): Outcome {
-  const teamSize = change.teamSize ?? lobby.settings.teamSize;
-  const rollOut = ROLL_OUT_RULES.find((rule) => rule === change.rollOut) ?? lobby.settings.rollOut;
-  if (change.rollOut !== undefined && rollOut !== change.rollOut) return refuse('invalid_settings');
-  if (!Number.isInteger(teamSize) || teamSize < MIN_TEAM_SIZE || teamSize > MAX_TEAM_SIZE) {
-    return refuse('invalid_settings');
-  }
-  const sizeChanged = teamSize !== lobby.settings.teamSize;
-  if (!sizeChanged && rollOut === lobby.settings.rollOut) return refuse('no_change');
-  if (SIDES.some((side) => seated(lobby, side).length > teamSize)) {
-    return refuse('team_size_below_seated');
-  }
-  const events: LobbyEvent[] = [];
-  if (sizeChanged) {
-    events.push({ type: 'settings_changed', actorId: actor.playerId, data: { teamSize } });
-  }
-  if (rollOut !== lobby.settings.rollOut) {
-    events.push({ type: 'roll_out_rule', actorId: actor.playerId, data: { rule: rollOut } });
-  }
-  // Another team size has another map pool, so a picked map no longer stands.
-  return done(
-    {
-      ...lobby,
-      settings: { teamSize, rollOut },
-      pickedMap: sizeChanged ? null : lobby.pickedMap,
-    },
-    events
-  );
-}
-
-/** Everyone seated is ready: the match starts. */
-function launch(lobby: Lobby, events: LobbyEvent[]): Outcome {
-  const matchNo = lobby.matchNo + 1;
-  const slug = matchSlugOf(lobby.id, matchNo);
-  events.push({ type: 'match_starting', actorId: SYSTEM_ACTOR, data: { matchNo } });
-  return done({ ...toGathering(lobby), state: 'in_match', matchNo, matchSlug: slug }, events, [
-    { type: 'create_match', slug },
-  ]);
-}
-
-function markReady(lobby: Lobby, playerId: string, events: LobbyEvent[]): Outcome {
+function markReady(lobby: Lobby, playerId: string, events: LobbyEvent[], ctx: Context): Outcome {
   const next: Lobby = {
     ...lobby,
     players: lobby.players.map((p) => (p.playerId === playerId ? { ...p, ready: true } : p)),
   };
-  if (allSeated(next).every((p) => p.ready)) return launch(next, events);
+  if (allSeated(next).every((p) => p.ready)) return launch(next, events, ctx);
   return done(next, events);
 }
 
@@ -253,7 +207,7 @@ function start(lobby: Lobby, actor: Actor, ctx: Context): Outcome {
   const starter = checking.players.find((p) => p.playerId === actor.playerId);
   // Whoever pressed Start is ready, when they play.
   const outcome = starter?.side
-    ? markReady(checking, actor.playerId, events)
+    ? markReady(checking, actor.playerId, events, ctx)
     : done(checking, events);
   if (outcome.ok && outcome.lobby.state === 'ready_check') {
     outcome.effects.push({ type: 'ready_timer', deadline });
@@ -266,7 +220,7 @@ function cancel(lobby: Lobby, actor: Actor): Outcome {
     const cancelled = cancelDraft(lobby, actor.playerId);
     return done(cancelled.lobby, [cancelled.event]);
   }
-  if (lobby.state === 'ready_check') {
+  if (lobby.state === 'ready_check' || lobby.state === 'map_vote') {
     return done(toGathering(lobby), [
       { type: 'start_cancelled', actorId: actor.playerId, data: {} },
     ]);
@@ -347,6 +301,8 @@ export function decide(lobby: Lobby, actor: Actor, command: Command, ctx: Contex
       return startDraft(lobby, actor, command, ctx);
     case 'pick':
       return pick(lobby, actor, command.playerId, ctx);
+    case 'vote_map':
+      return voteMap(lobby, actor, command.map, ctx);
     case 'start':
       return start(lobby, actor, ctx);
     case 'ready': {
@@ -354,7 +310,7 @@ export function decide(lobby: Lobby, actor: Actor, command: Command, ctx: Contex
       const mine = lobby.players.find((p) => p.playerId === actor.playerId);
       if (!mine?.side) return refuse('not_in_lobby');
       if (mine.ready) return refuse('no_change');
-      return markReady(lobby, actor.playerId, []);
+      return markReady(lobby, actor.playerId, [], ctx);
     }
     case 'cancel':
       return cancel(lobby, actor);
@@ -384,6 +340,7 @@ export function decideSystem(lobby: Lobby, command: SystemCommand, ctx: Context)
     ]);
   }
   if (command.type === 'pick_timeout') return pickTimeout(lobby, command.deadline, ctx);
+  if (command.type === 'vote_timeout') return voteTimeout(lobby, command.deadline, ctx);
   if (command.type === 'idle_timeout') {
     if (lobby.state !== 'gathering') return refuse('stale');
     return done({ ...lobby, state: 'closed' }, [

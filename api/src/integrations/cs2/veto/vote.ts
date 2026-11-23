@@ -16,9 +16,10 @@ import { describeMatch, describedPlayers } from '../../../utils/matchIntegration
 /** Seconds per step of a matchmaking veto vote. */
 export const MM_VOTE_SECONDS = 10;
 
-/** A matchmaking match: its veto is a vote. */
+/** A matchmaking match, or a pickup lobby's (docs/design/pickup-lobby.md): its veto is a vote. */
 export function isVoteVeto(match: Pick<DbMatchRow, 'source' | 'tournament_id'>): boolean {
-  return match.source === 'matchmaking' && match.tournament_id == null;
+  const voted = match.source === 'matchmaking' || match.source === 'pickup';
+  return voted && match.tournament_id == null;
 }
 
 /**

@@ -29,10 +29,26 @@ function modeOf(teamSize: number): MatchmakingMode {
 
 const MAX_ROUNDS: Record<MatchmakingMode, number> = { '5v5': 24, '2v2': 16, '1v1': 12 };
 
-/** The maps a lobby of this team size picks from. */
-export async function mapPoolFor(teamSize: number): Promise<PickupMap[]> {
+export interface PickupPool {
+  id: number;
+  name: string;
+  maps: number;
+}
+
+/** The platform's map pools a host can choose from. */
+export async function mapPools(): Promise<PickupPool[]> {
   if (!hasIntegration(PICKUP_GAME)) return [];
-  const pool = (await getIntegration(PICKUP_GAME).matchmakingMapPool?.(modeOf(teamSize))) ?? [];
+  return (await getIntegration(PICKUP_GAME).matchmakingPools?.()) ?? [];
+}
+
+/** The maps a lobby of this team size picks from. */
+export async function mapPoolFor(
+  teamSize: number,
+  poolId: number | null = null
+): Promise<PickupMap[]> {
+  if (!hasIntegration(PICKUP_GAME)) return [];
+  const pool =
+    (await getIntegration(PICKUP_GAME).matchmakingMapPool?.(modeOf(teamSize), poolId)) ?? [];
   return pool.map((m) => ({ id: m.id, name: m.name }));
 }
 
@@ -40,11 +56,18 @@ export async function mapPoolFor(teamSize: number): Promise<PickupMap[]> {
  * Create the lobby's match and ask for a server. The lobby is already
  * `in_match` with `matchSlug` set. Throws when the match cannot be made.
  */
-export async function createPickupMatch(lobby: Lobby, slug: string, now: number): Promise<void> {
-  const pool = await mapPoolFor(lobby.settings.teamSize);
+export async function createPickupMatch(
+  lobby: Lobby,
+  slug: string,
+  now: number,
+  /** The two teams veto the map on the match page before it gets a server. */
+  wantsVeto: boolean
+): Promise<void> {
+  const pool = await mapPoolFor(lobby.settings.teamSize, lobby.settings.poolId);
   if (pool.length === 0) throw new Error('No maps for this team size');
+  const veto = wantsVeto && pool.length > 1;
   const picked = pool.find((m) => m.id === lobby.pickedMap);
-  const map = picked?.id ?? pool[randomInt(pool.length)].id;
+  const map = veto ? null : (picked?.id ?? pool[randomInt(pool.length)].id);
 
   const ids = (side: Side) =>
     seated(lobby, side)
@@ -71,7 +94,9 @@ export async function createPickupMatch(lobby: Lobby, slug: string, now: number)
         team1: team('a', 'Team A'),
         team2: team('b', 'Team B'),
         num_maps: 1,
-        maplist: [map],
+        maplist: map === null ? pool.map((m) => m.id) : [map],
+        // The veto runs before the match gets a server (status 'pending' until it is done).
+        ...(veto ? { vetoDisabled: false } : {}),
         wingman: mode === '2v2',
         maxRounds: MAX_ROUNDS[mode],
         ...matchmakingSides(mode),
@@ -90,7 +115,7 @@ export async function createPickupMatch(lobby: Lobby, slug: string, now: number)
     teamB: ids('b'),
     now,
   });
-  log.info(`[PICKUP] lobby ${lobby.id}: match ${slug} on ${map}`);
+  log.info(`[PICKUP] lobby ${lobby.id}: match ${slug} ${map ? `on ${map}` : 'vetoes its map'}`);
 
   // Allocation is the scheduler's; it keeps trying while no server is free.
   const { scheduler } = await import('../../core/scheduler');
