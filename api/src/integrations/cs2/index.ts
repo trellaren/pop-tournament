@@ -563,6 +563,12 @@ export const cs2Integration: GameIntegration<Cs2Data> = {
     }));
   },
 
+  /** The pickup lobby's mid-match substitution, through the fleet's roster update. */
+  async substitutePlayer(slug, change) {
+    const { substitutePlayer } = await import('./fleet/push/substitute');
+    return substitutePlayer(slug, change);
+  },
+
   /** The enabled map pools, for the admin's pick per matchmaking mode. */
   async matchmakingPools() {
     const { db } = await import('../../config/database');

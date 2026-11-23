@@ -290,7 +290,8 @@ export type CancelReason =
  * admin as they are (CS2: `cs2_outdated_servers` with the affected servers).
  */
 export type StartCheckResult =
-  { ok: true } | { ok: false; errorCode: string; message: string; details?: object };
+  | { ok: true }
+  | { ok: false; errorCode: string; message: string; details?: object };
 
 export interface ValidationResult {
   valid: boolean;
@@ -1007,6 +1008,18 @@ export interface GameIntegration<D extends IntegrationData = IntegrationData> {
     mode: string,
     poolId?: number | null
   ): Promise<Array<{ id: string; name: string; imageUrl: string | null }>>;
+  /**
+   * Put one player into a match in another's place, on the same team
+   * (the pickup lobby's mid-match substitution). A match with no server yet
+   * gets the new roster in its stored config; one on a server is told, and
+   * takes the change whole or not at all. Safe to ask again: a roster that
+   * already shows the change is done. False when the server did not take
+   * it. Omitted: the game cannot change a running match's roster.
+   */
+  substitutePlayer?(
+    slug: string,
+    change: { outId: string; inId: string; inName: string; team: 'team1' | 'team2' }
+  ): Promise<boolean>;
   /** The map pools an admin can pick per matchmaking mode (CS2: the enabled map pools). */
   matchmakingPools?(): Promise<Array<{ id: number; name: string; maps: number }>>;
   /**

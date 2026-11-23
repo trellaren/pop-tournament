@@ -1351,7 +1351,8 @@ export function getSchemaSQL(): string {
       match_slug TEXT, -- the running match; NULL outside one
       updated_at INTEGER, -- when the lobby last changed; NULL = never since it opened
       draft TEXT, -- JSON { captains, picks, ratings }: the running captain draft; NULL outside one
-      votes TEXT -- JSON { player id: map id }: the running map vote
+      votes TEXT, -- JSON { player id: map id }: the running map vote
+      substitution TEXT -- JSON { leavers, failed }: who left the running match, and a substitution its server did not take
     );
     CREATE UNIQUE INDEX IF NOT EXISTS idx_pickup_lobbies_open ON pickup_lobbies(game, mode) WHERE state <> 'closed';
 

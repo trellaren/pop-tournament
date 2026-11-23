@@ -13,6 +13,7 @@ import { PickupDraftBanner, PickupDraftPool } from './PickupDraft';
 import { PickupInvites } from './PickupInvites';
 import { PickupLog } from './PickupLog';
 import { PickupStatus } from './PickupStatus';
+import { PickupSubstitute } from './PickupSubstitute';
 import { PickupTeamPanel } from './PickupTeamPanel';
 import {
   pickupRefusalCode,
@@ -135,6 +136,7 @@ export function PickupLobbyBody({
                 onDeadline={reload}
               />
             ) : null}
+            <PickupSubstitute lobby={lobby} busy={busy} onCommand={onCommand} />
             <PickupTeamPanel
               lobby={lobby}
               side={null}

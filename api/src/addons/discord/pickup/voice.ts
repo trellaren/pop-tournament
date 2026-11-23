@@ -111,6 +111,20 @@ async function bringBack(slug: string): Promise<void> {
   if (allGone) await db.runAsync('DELETE FROM pickup_discord_voice WHERE match_slug = ?', [slug]);
 }
 
+/** A substitution: the substitute to their team's channel, the leaver back to the lobby channel. */
+async function followSubstitution(slug: string, side: string, inId: string, outId: string) {
+  const row = await db.queryOneAsync<VoiceRow>(
+    'SELECT lobby_channel_id, team_a_channel_id, team_b_channel_id FROM pickup_discord_voice WHERE match_slug = ?',
+    [slug]
+  );
+  const token = await botToken();
+  const guildId = await pickedGuildId();
+  if (!row || !token || !guildId) return;
+  const teamChannel = side === 'a' ? row.team_a_channel_id : row.team_b_channel_id;
+  if (teamChannel) await move(token, guildId, [inId], teamChannel);
+  await move(token, guildId, [outId], row.lobby_channel_id);
+}
+
 const MATCH_OVER = new Set(['match_ended', 'match_cancelled', 'match_failed']);
 
 /** Follow a lobby change: split at the match's start, bring everyone back at its end. */
@@ -119,6 +133,16 @@ export async function followVoice(change: PickupChange): Promise<void> {
     const matchNo = event.data.matchNo;
     if (MATCH_OVER.has(event.type) && typeof matchNo === 'number') {
       await bringBack(matchSlugOf(change.lobby.id, matchNo));
+    }
+    const { playerId, outId, side } = event.data;
+    const swapped = event.type === 'substituted' || event.type === 'substitution_undone';
+    if (swapped && change.lobby.matchSlug && typeof playerId === 'string') {
+      if (typeof outId !== 'string') continue;
+      // Undone: the two change places again.
+      const [incoming, leaving] =
+        event.type === 'substituted' ? [playerId, outId] : [outId, playerId];
+      const seat = change.lobby.players.find((p) => p.playerId === incoming)?.side ?? side;
+      await followSubstitution(change.lobby.matchSlug, String(seat), incoming, leaving);
     }
   }
   for (const effect of change.effects) {

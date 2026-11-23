@@ -21,6 +21,10 @@ const KNOWN = new Set([
   'visibility',
   'invited',
   'invite_revoked',
+  'substituted',
+  'substitution_failed',
+  'substitution_retried',
+  'substitution_undone',
   'closed',
   'map_picked',
   'ready_check',
@@ -103,6 +107,7 @@ export function PickupLog({ lines }: { lines: PickupLogLine[] }) {
               {t(lineKey(line), {
                 actor: line.actorName,
                 player: line.playerName ?? line.actorName,
+                other: line.otherName ?? '',
                 place: t(placeKey(line.data.side)),
                 size: line.data.teamSize ?? '',
                 map: line.data.map ?? '',

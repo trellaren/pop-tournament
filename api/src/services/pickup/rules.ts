@@ -32,6 +32,7 @@ import { cancelDraft, isCaptain, pick, pickTimeout, startDraft, turnOf } from '.
 import { launch, voteMap, voteTimeout } from './mapVote';
 import { rollOutAfterMatch, rollOutByHand } from './rollout';
 import { setSettings } from './settings';
+import { substitute, substitutionAction, substitutionFailed, substitutes } from './substitution';
 import { balance, scramble } from './teams';
 
 export * from './lobby';
@@ -39,6 +40,7 @@ export { balancedSplit, shuffled } from './teams';
 export { draftPool, sideOfPick, turnOf } from './draft';
 export { voteWinner } from './mapVote';
 export { isInvited, mayEnter } from './invites';
+export { substitutes } from './substitution';
 
 /** Commands that must name the version they were drawn for. */
 const ONE_SHOT: ReadonlySet<CommandType> = new Set([
@@ -49,6 +51,8 @@ const ONE_SHOT: ReadonlySet<CommandType> = new Set([
   'start',
   'cancel',
   'close',
+  'substitute',
+  'substitution_action',
 ]);
 
 /** Commands only the host and admins may send. */
@@ -61,6 +65,8 @@ const MANAGE_ONLY: ReadonlySet<CommandType> = new Set([
   'lock_teams',
   'invite',
   'revoke_invite',
+  'substitute',
+  'substitution_action',
   'set_settings',
   'roll_out',
   'start_draft',
@@ -100,6 +106,8 @@ export function allowed(lobby: Lobby, actor: Actor): Record<CommandType, boolean
     join:
       open && (mine ? gathering && (!lobby.teamsLocked || manage) : mayEnter(lobby, actor, false)),
     invite: manage,
+    substitute: manage && !lobby.subFailed && substitutes(lobby).length > 0,
+    substitution_action: manage && lobby.state === 'in_match' && lobby.subFailed !== null,
     revoke_invite: manage,
     leave: open && Boolean(mine) && !playing,
     move: manage && gathering,
@@ -264,6 +272,10 @@ export function decide(lobby: Lobby, actor: Actor, command: Command, ctx: Contex
   switch (command.type) {
     case 'join':
       return join(lobby, actor, command.side, command.byLink === true, ctx);
+    case 'substitute':
+      return substitute(lobby, actor, command.outId, command.inId, ctx);
+    case 'substitution_action':
+      return substitutionAction(lobby, actor, command.action, ctx);
     case 'invite':
       return invite(lobby, actor, command.playerId);
     case 'revoke_invite':
@@ -368,6 +380,9 @@ export function decideSystem(lobby: Lobby, command: SystemCommand, ctx: Context)
     return done({ ...lobby, state: 'closed' }, [
       { type: 'closed', actorId: SYSTEM_ACTOR, data: { reason: 'idle' } },
     ]);
+  }
+  if (command.type === 'substitution_failed') {
+    return substitutionFailed(lobby, command.slug, command.outId, command.inId);
   }
   if (lobby.state !== 'in_match' || lobby.matchSlug !== command.slug) return refuse('stale');
   if (command.type === 'match_ended') {

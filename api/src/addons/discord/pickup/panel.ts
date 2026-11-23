@@ -158,6 +158,13 @@ export async function announce(change: PickupChange): Promise<void> {
   if (invited.length > 0) {
     await ping(change.lobby.id, invited, 'You are invited to the lobby: join on the panel.');
   }
+  const subbedIn = change.events.flatMap((e) =>
+    e.type === 'substituted' && typeof e.data.playerId === 'string' ? [e.data.playerId] : []
+  );
+  if (subbedIn.length > 0 && change.lobby.matchSlug) {
+    const where = `${siteUrl()}/match/${encodeURIComponent(change.lobby.matchSlug)}`;
+    await ping(change.lobby.id, subbedIn, `You are coming into the match. Connect here: ${where}`);
+  }
   const rolledIn = change.events.flatMap((e) =>
     e.type === 'rolled_in' && typeof e.data.playerId === 'string' ? [e.data.playerId] : []
   );

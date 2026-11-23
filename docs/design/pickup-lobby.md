@@ -299,7 +299,18 @@ Each is its own pull request into `pop`, stacked in this order.
    when the host changes); whoever joins by one goes on the list. The token
    is never logged and never in the lobby log. A link the person still
    holds lets them back in after a Revoke or Kick until it runs out.
-10. **Mid-match substitution**, through the platform's roster update.
+10. **Mid-match substitution**, through the platform's roster update. While
+    a match runs the host or an admin brings someone from the waiting room in
+    for a seated player. The substitute takes the seat and side; the leaver
+    goes to the back of the waiting room and does not come back into the
+    same match. The match is told after the change is written: one with no
+    server yet gets the new roster in its config, one on a Ready Up server
+    gets the platform's `match.update` (remove, then add on the same team),
+    which the server takes whole or not at all. When it does not, the lobby
+    shows the substitution as failed and offers Retry (send it again; a
+    roster that already shows the change counts as done) and Undo (both
+    players back, nothing sent). Roll-out afterwards counts whoever is on
+    the field at the end.
 11. **Spectators, practice and retakes**, through the platform's servers.
 12. **Moderation and roles.** What the table below marks "build".
 13. **Admin settings and docs.** Settings → Pickup, the user guide page.

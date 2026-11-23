@@ -282,6 +282,10 @@ router.get(
  *       created and waits for a free server. `roll_out`, `start_draft`, `scramble`, `balance`, `start`,
  *       `cancel` and `close` must send the lobby's `version`; a stale one is
  *       refused with 409 `stale`.
+ *       While a match runs the host or an admin sends `substitute` (`outId`:
+ *       a seated player, `inId`: someone in the waiting room; with the
+ *       `version`), and after one the match server did not take,
+ *       `substitution_action` (`action`: `retry` or `undo`; with the `version`).
  *       Refusals are 409 with a `code` (403 `not_allowed`).
  *     parameters:
  *       - in: path

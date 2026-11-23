@@ -8,6 +8,7 @@ import {
 import { signInAsPlayer, signInAsPlayerViaRequest, signInViaRequest } from '../helpers/auth';
 import { BASE_URL, TAGS, type LobbyBody, type PickupFixture } from './pickup/fixture';
 import { invitesTests } from './pickup/invites';
+import { substitutionTests } from './pickup/substitution';
 import { wingmanTests } from './pickup/wingman';
 
 /**
@@ -366,6 +367,7 @@ test.describe.serial('pickup lobby', () => {
   };
   wingmanTests(fixture);
   invitesTests(fixture);
+  substitutionTests(fixture);
 
   test('the page: open, join from a second browser, scramble, close', TAGS, async ({ browser }) => {
     const hostContext = await browser.newContext({ baseURL: BASE_URL });

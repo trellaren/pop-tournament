@@ -9,6 +9,7 @@ import {
   turnOf,
   mayManage,
   seated,
+  substitutes,
   waiting,
   type Actor,
   type CommandType,
@@ -60,6 +61,8 @@ export interface LogLine {
   actorName: string;
   /** The player the line is about, when it is about one. */
   playerName: string | null;
+  /** A second player the line is about: who went out in a substitution. */
+  otherName: string | null;
   data: EventData;
 }
 
@@ -102,6 +105,12 @@ export interface LobbyView {
   } | null;
   teams: Record<Side, PlayerView[]>;
   waiting: PlayerView[];
+  /** Who may come in for a seated player, longest wait first; empty outside a match. */
+  substitutes: string[];
+  /** Who left the running match by substitution. */
+  leavers: Array<{ playerId: string; name: string }>;
+  /** A substitution the match server did not take: who went out, who came in. */
+  subFailed: { outId: string; outName: string; inId: string; inName: string } | null;
   /** The invite list, for the host and admins only; empty for everyone else. */
   invited: Array<{ playerId: string; name: string; inLobby: boolean }>;
   log: LogLine[];
@@ -164,14 +173,15 @@ export async function buildView(lobby: Lobby, viewer: Actor): Promise<LobbyView>
   const events = await loadEvents(lobbyId);
   const ids = lobby.players.map((p) => p.playerId);
   const mentioned = events.flatMap((e) => {
-    const about = e.data.playerId;
-    return typeof about === 'string' ? [e.actorId, about] : [e.actorId];
+    const about = [e.data.playerId, e.data.outId].filter((id) => typeof id === 'string');
+    return [e.actorId, ...about];
   });
   const invited = mayManage(lobby, viewer) ? lobby.invited : [];
   const [names, ratings] = await Promise.all([
-    loadNames([...ids, ...mentioned, ...invited]),
+    loadNames([...ids, ...mentioned, ...invited, ...lobby.leavers]),
     ratingsOf(ids),
   ]);
+  const nameOf = (playerId: string) => names.get(playerId)?.name ?? UNKNOWN_PLAYER;
   const row = (p: LobbyPlayer) => playerView(p, lobby, names, ratings);
   const bySeat = (x: LobbyPlayer, y: LobbyPlayer) => x.joinedAt - y.joinedAt;
   return {
@@ -203,6 +213,16 @@ export async function buildView(lobby: Lobby, viewer: Actor): Promise<LobbyView>
       b: seated(lobby, 'b').sort(bySeat).map(row),
     },
     waiting: waiting(lobby).map(row),
+    substitutes: substitutes(lobby).map((p) => p.playerId),
+    leavers: lobby.leavers.map((playerId) => ({ playerId, name: nameOf(playerId) })),
+    subFailed: lobby.subFailed
+      ? {
+          outId: lobby.subFailed.outId,
+          outName: nameOf(lobby.subFailed.outId),
+          inId: lobby.subFailed.inId,
+          inName: nameOf(lobby.subFailed.inId),
+        }
+      : null,
     invited: invited.map((playerId) => ({
       playerId,
       name: names.get(playerId)?.name ?? UNKNOWN_PLAYER,
@@ -216,7 +236,8 @@ export async function buildView(lobby: Lobby, viewer: Actor): Promise<LobbyView>
         at: e.at,
         actorId: e.actorId,
         actorName: names.get(e.actorId)?.name ?? UNKNOWN_PLAYER,
-        playerName: typeof about === 'string' ? (names.get(about)?.name ?? UNKNOWN_PLAYER) : null,
+        playerName: typeof about === 'string' ? nameOf(about) : null,
+        otherName: typeof e.data.outId === 'string' ? nameOf(e.data.outId) : null,
         data: e.data,
       };
     }),

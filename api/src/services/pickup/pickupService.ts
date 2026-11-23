@@ -22,7 +22,13 @@ import {
   type Side,
   type SystemCommand,
 } from './rules';
-import { cancelPickupMatch, createPickupMatch, mapPoolFor, mapPools } from './pickupMatch';
+import {
+  cancelPickupMatch,
+  createPickupMatch,
+  mapPoolFor,
+  mapPools,
+  substituteInMatch,
+} from './pickupMatch';
 import { emitPickupChange } from './pickupBus';
 import { isKnownPlayer } from './pickupInvites';
 import { inviteTokenFor, linkAdmits } from './pickupInviteLinks';
@@ -37,6 +43,7 @@ import {
   loadOpenLobbies,
   openLobbyIdOf,
   saveLobby,
+  swapInMatchRoster,
 } from './pickupStore';
 
 /** The page topic: every pickup page re-reads when it is emitted. */
@@ -88,6 +95,9 @@ const REFUSALS: Record<PickupErrorCode, string> = {
   invite_limit: 'The invite list is full',
   unknown_player: 'No such player on the site',
   invite_link_invalid: 'That invite link no longer works',
+  not_on_roster: 'That player is not playing in the match',
+  not_eligible: 'Only someone in the waiting room can come in',
+  already_subbed_out: 'That player already left this match',
 };
 
 function refusal(code: PickupErrorCode): PickupError {
@@ -220,7 +230,34 @@ export class PickupService {
     emitPickupChange({ lobby: outcome.lobby, events: outcome.events, effects: outcome.effects });
   }
 
+  /**
+   * Tell the match server about a substitution, outside the lock: its answer
+   * can take seconds. One it does not take comes back as `substitution_failed`.
+   */
+  private async substituteOnServer(
+    lobbyId: string,
+    effect: Extract<Effect, { type: 'substitute' }>
+  ): Promise<void> {
+    const { slug, outId, inId } = effect;
+    let taken = false;
+    try {
+      taken = await substituteInMatch(slug, outId, inId, effect.side);
+      if (taken) await swapInMatchRoster(slug, outId, inId);
+    } catch (error) {
+      log.error(`[PICKUP] could not substitute in match ${slug}`, error as Error);
+    }
+    if (taken) return;
+    await this.locked(async () => {
+      const lobby = await loadLobby(lobbyId);
+      if (lobby) await this.system(lobby, { type: 'substitution_failed', slug, outId, inId });
+    });
+  }
+
   private async run(lobby: Lobby, effect: Effect, now: number): Promise<void> {
+    if (effect.type === 'substitute') {
+      setImmediate(() => void this.substituteOnServer(lobby.id, effect));
+      return;
+    }
     if (effect.type !== 'create_match' && effect.type !== 'cancel_match') {
       const wait = Math.max(0, effect.deadline - now) * 1000 + 500;
       setTimeout(() => void this.refresh(lobby.id), wait).unref();

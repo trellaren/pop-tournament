@@ -7,7 +7,7 @@ import { db } from '../../config/database';
 import type { EventData, Lobby, LobbyEvent, LobbyPlayer, LobbyState, Side } from './rules';
 import type { Untrusted } from '../../utils/untrusted';
 import { mapFromMatch } from '../matchmaking/mapFromMatch';
-import { parseDraft, parseSettings, parseVotes } from './pickupParse';
+import { parseDraft, parseSettings, parseVotes, parseSubstitution } from './pickupParse';
 import { invitesOf, writeInvites } from './pickupInvites';
 
 export const PICKUP_GAME = 'cs2';
@@ -28,6 +28,7 @@ interface LobbyRow {
   match_slug: string | null;
   draft: string | null;
   votes: string | null;
+  substitution: string | null;
   created_at: number;
 }
 
@@ -108,13 +109,14 @@ function toLobby(row: LobbyRow, players: PlayerRow[], invited: string[]): Lobby 
     matchSlug: row.match_slug,
     draft: parseDraft(row.draft),
     votes: parseVotes(row.votes),
+    ...parseSubstitution(row.substitution),
     invited,
     players: players.map(toPlayer),
   };
 }
 
 const LOBBY_COLUMNS =
-  'id, state, host_id, version, settings, teams_locked, picked_map, deadline_at, match_count, match_slug, draft, votes, created_at';
+  'id, state, host_id, version, settings, teams_locked, picked_map, deadline_at, match_count, match_slug, draft, votes, substitution, created_at';
 
 async function playersOf(lobbyId: string): Promise<PlayerRow[]> {
   return db.queryAsync<PlayerRow>(
@@ -229,7 +231,7 @@ export async function saveLobby(
       `UPDATE pickup_lobbies
           SET state = $1, host_id = $2, version = $3, settings = $4, teams_locked = $5,
               closed_at = CASE WHEN $1 = 'closed' THEN $6::integer ELSE closed_at END,
-              picked_map = $9, deadline_at = $10, match_count = $11, match_slug = $12, draft = $13, votes = $14,
+              picked_map = $9, deadline_at = $10, match_count = $11, match_slug = $12, draft = $13, votes = $14, substitution = $15,
               updated_at = $6::integer
         WHERE id = $7 AND version = $8`,
       [
@@ -247,6 +249,7 @@ export async function saveLobby(
         lobby.matchSlug,
         lobby.draft ? JSON.stringify(lobby.draft) : null,
         JSON.stringify(lobby.votes),
+        JSON.stringify({ leavers: lobby.leavers, failed: lobby.subFailed }),
       ]
     );
     if (updated.rowCount !== 1) throw new Error('Pickup lobby changed while it was being written');
@@ -390,4 +393,16 @@ export async function loadMatchRoster(slug: string): Promise<{ a: string[]; b: s
     }
   };
   return { a: list(row.team_a), b: list(row.team_b) };
+}
+
+/** The match's roster after a substitution: the substitute in the leaver's place. */
+export async function swapInMatchRoster(slug: string, outId: string, inId: string): Promise<void> {
+  const roster = await loadMatchRoster(slug);
+  if (!roster) return;
+  const swap = (ids: string[]) => ids.map((id) => (id === outId ? inId : id));
+  await db.runAsync('UPDATE pickup_matches SET team_a = ?, team_b = ? WHERE match_slug = ?', [
+    JSON.stringify(swap(roster.a)),
+    JSON.stringify(swap(roster.b)),
+    slug,
+  ]);
 }

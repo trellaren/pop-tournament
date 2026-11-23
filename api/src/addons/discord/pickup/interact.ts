@@ -47,6 +47,15 @@ export const PICKUP_COMMAND = {
     },
     {
       type: 1,
+      name: 'substitute',
+      description: 'Host: during a match, bring someone from the waiting room in for a player',
+      options: [
+        { type: 6, name: 'out', description: 'Who leaves the match', required: true },
+        { type: 6, name: 'in', description: 'Who comes in', required: true },
+      ],
+    },
+    {
+      type: 1,
       name: 'invite-link',
       description: 'Host: a link that lets whoever holds it join, for 12 hours',
     },
@@ -76,6 +85,8 @@ function userIdOf(interaction: Record<string, Untrusted>): string | null {
   const id = user?.id ?? member?.user?.id;
   return typeof id === 'string' ? id : null;
 }
+
+const NOT_LINKED_BOTH = 'Both people need to have connected Discord on the site.';
 
 const NOT_LINKED_OTHER =
   'That person has not connected Discord on the site yet. Send them an invite link instead: /pickup invite-link';
@@ -199,6 +210,24 @@ export async function pickupCommandAnswer(interaction: Record<string, Untrusted>
       if (!invited) return NOT_LINKED_OTHER;
       await pickupService.command(lobbyId, actor, { type: 'invite', playerId: invited.playerId });
       return `Invited <@${String(who)}>.`;
+    }
+    if (sub.name === 'substitute') {
+      const named = (name: string) => optionsOf(sub.options).find((o) => o.name === name)?.value;
+      const [out, incoming] = await Promise.all(
+        ['out', 'in'].map(async (name) => {
+          const who = named(name);
+          return typeof who === 'string' ? actorOf(who) : null;
+        })
+      );
+      if (!out || !incoming) return NOT_LINKED_BOTH;
+      const lobby = await pickupService.view(lobbyId, actor);
+      await pickupService.command(
+        lobbyId,
+        actor,
+        { type: 'substitute', outId: out.playerId, inId: incoming.playerId },
+        lobby.version
+      );
+      return 'Substituted. The match server is being told.';
     }
     if (sub.name === 'invite-link') {
       const token = await pickupService.inviteToken(lobbyId, actor);
