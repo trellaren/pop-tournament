@@ -7,7 +7,8 @@ import { log } from '../../../utils/logger';
 import type { Untrusted } from '../../../utils/untrusted';
 import { PickupError, pickupService } from '../../../services/pickup/pickupService';
 import { actorOfDiscord as actorOf } from '../../../services/pickup/activitySignIn';
-import { commandOf, doneText, parseCustomId } from './panelText';
+import { modeServers } from '../../../services/pickup/spectators';
+import { commandOf, doneText, parseCustomId, plainName } from './panelText';
 import { schedulePanel } from './panel';
 import { setPickupDiscordSettings, siteUrl } from './settings';
 
@@ -45,6 +46,12 @@ export const PICKUP_COMMAND = {
       description: 'Host: invite someone to the lobby',
       options: [{ type: 6, name: 'user', description: 'Who to invite', required: true }],
     },
+    {
+      type: 1,
+      name: 'spectate',
+      description: 'Watch the running match from inside its server (not for its players)',
+    },
+    { type: 1, name: 'servers', description: 'The practice and retakes servers that are online' },
     {
       type: 1,
       name: 'substitute',
@@ -153,6 +160,16 @@ async function show(): Promise<string> {
   ].join('\n');
 }
 
+/** The practice and retakes servers, as lines for the console. */
+async function servers(): Promise<string> {
+  const online = await modeServers();
+  const lines = (title: string, list: Array<{ name: string; address: string }>) =>
+    list.length === 0
+      ? [`${title}: none online`]
+      : [`${title}:`, ...list.map((s) => `- ${plainName(s.name)}: \`connect ${s.address}\``)];
+  return [...lines('Practice', online.practice), ...lines('Retakes', online.retakes)].join('\n');
+}
+
 async function setup(permissions: string | undefined, options: Untrusted): Promise<string> {
   if ((BigInt(permissions ?? '0') & ADMINISTRATOR) === 0n) {
     return 'Only an administrator of this Discord server can do that.';
@@ -185,6 +202,7 @@ export async function pickupCommandAnswer(interaction: Record<string, Untrusted>
   const answer = await attempt(async () => {
     if (!sub.name || sub.name === 'show') return show();
     if (sub.name === 'setup') return setup(member?.permissions, sub.options);
+    if (sub.name === 'servers') return servers();
     const userId = userIdOf(interaction);
     const actor = userId ? await actorOf(userId) : null;
     if (!actor) return NOT_LINKED;
@@ -210,6 +228,12 @@ export async function pickupCommandAnswer(interaction: Record<string, Untrusted>
       if (!invited) return NOT_LINKED_OTHER;
       await pickupService.command(lobbyId, actor, { type: 'invite', playerId: invited.playerId });
       return `Invited <@${String(who)}>.`;
+    }
+    if (sub.name === 'spectate') {
+      const connect = await pickupService.spectate(lobbyId, actor);
+      if (!connect) return 'You are on the spectator list. The match has no server yet: ask again.';
+      const password = connect.password ? `; password ${connect.password}` : '';
+      return `In the game console: \`connect ${connect.host}:${connect.port}${password}\``;
     }
     if (sub.name === 'substitute') {
       const named = (name: string) => optionsOf(sub.options).find((o) => o.name === name)?.value;

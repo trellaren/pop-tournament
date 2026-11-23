@@ -569,6 +569,23 @@ export const cs2Integration: GameIntegration<Cs2Data> = {
     return substitutePlayer(slug, change);
   },
 
+  /** A pickup match's spectator list, through the fleet's roster update. */
+  async matchSpectator(slug, change) {
+    const { matchSpectator } = await import('./fleet/push/substitute');
+    return matchSpectator(slug, change);
+  },
+
+  async matchSpectatorConnect(slug) {
+    const { matchSpectatorConnect } = await import('./routes/spectatorConnect');
+    return matchSpectatorConnect(slug);
+  },
+
+  /** Online practice or retakes servers (their plugin on, the match plugin off). */
+  async modeServers(mode) {
+    const { modeServers } = await import('./skins/tryout');
+    return modeServers(mode);
+  },
+
   /** The enabled map pools, for the admin's pick per matchmaking mode. */
   async matchmakingPools() {
     const { db } = await import('../../config/database');

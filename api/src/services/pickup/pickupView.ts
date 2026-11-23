@@ -2,6 +2,7 @@
  * The pickup lobby as the pages see it: names, ratings, the match's status and
  * the log, for one viewer.
  */
+import { maySpectate } from './spectators';
 import { getGameRatings } from '../gameRatings';
 import {
   allowed,
@@ -105,6 +106,8 @@ export interface LobbyView {
   } | null;
   teams: Record<Side, PlayerView[]>;
   waiting: PlayerView[];
+  /** Whether the viewer may watch the running match from inside its server. */
+  maySpectate: boolean;
   /** Who may come in for a seated player, longest wait first; empty outside a match. */
   substitutes: string[];
   /** Who left the running match by substitution. */
@@ -213,6 +216,7 @@ export async function buildView(lobby: Lobby, viewer: Actor): Promise<LobbyView>
       b: seated(lobby, 'b').sort(bySeat).map(row),
     },
     waiting: waiting(lobby).map(row),
+    maySpectate: maySpectate(lobby, viewer),
     substitutes: substitutes(lobby).map((p) => p.playerId),
     leavers: lobby.leavers.map((playerId) => ({ playerId, name: nameOf(playerId) })),
     subFailed: lobby.subFailed

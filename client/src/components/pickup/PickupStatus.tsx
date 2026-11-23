@@ -7,6 +7,7 @@ import { Panel } from '../common/ui';
 import { matchDetailsPath } from '../../paths';
 import type { PickupCommand, PickupLobby } from './pickupApi';
 import { usePickupHost } from './pickupHost';
+import { PickupSpectate } from './PickupSpectate';
 
 interface PickupStatusProps {
   lobby: PickupLobby;
@@ -130,6 +131,7 @@ export function PickupStatus({ lobby, busy, onCommand, onDeadline }: PickupStatu
               : t('pickup.match.open')}
           </Button>
         </Box>
+        <PickupSpectate lobby={lobby} />
       </Panel>
     );
   }

@@ -11,7 +11,7 @@
 
 # API reference
 
-Every endpoint this API serves — 783 of them, 489 behind auth —
+Every endpoint this API serves — 785 of them, 489 behind auth —
 read directly from the routers rather than written down, so it cannot drift.
 
 For *how* to authenticate a bot or script, and a task-oriented tour of the
@@ -1282,19 +1282,28 @@ Parties, the queue, matches and the matchmaking leaderboard (docs/design/matchma
 | `GET` | `/api/matchmaking/admin/commends/review` | admin |
 | `DELETE` | `/api/matchmaking/admin/players/:id/cooldown` | admin |
 
+### Pickup: around the lobby
+
+The Discord Activity's sign-in, invite links, Spectate, and the practice and retakes servers (docs/design/pickup-lobby.md). For signed-in players, but for the Activity's sign-in itself.
+
+| Method | Path | Auth |
+| --- | --- | --- |
+| `GET` | `/api/pickup/activity/config` | public |
+| `POST` | `/api/pickup/activity/token` | public |
+| `GET` | `/api/pickup/servers` | public |
+| `POST` | `/api/pickup/:id/invite-link` | public |
+| `POST` | `/api/pickup/:id/spectate` | public |
+
 ### Pickup
 
 Pickup lobbies (docs/design/pickup-lobby.md): a group picks its own teams by choosing sides, scrambling or balancing. For signed-in players; writes must be same-site JSON.
 
 | Method | Path | Auth |
 | --- | --- | --- |
-| `GET` | `/api/pickup/activity/config` | public |
-| `POST` | `/api/pickup/activity/token` | public |
 | `GET` | `/api/pickup` | public |
 | `POST` | `/api/pickup` | public |
 | `GET` | `/api/pickup/:id` | public |
 | `POST` | `/api/pickup/:id/commands` | public |
-| `POST` | `/api/pickup/:id/invite-link` | public |
 
 ### Test helpers
 

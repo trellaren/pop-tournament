@@ -24,12 +24,31 @@ export interface TryoutServer {
 }
 
 /** A server runs `plugin` when it is installed and not disabled (hello.plugins_state). */
-function runs(state: { installed: string[]; disabled: string[] } | null, plugin: string): boolean {
+function runs(state: PluginsState, plugin: string): boolean {
   return !!state && state.installed.includes(plugin) && !state.disabled.includes(plugin);
 }
 
+type PluginsState = { installed: string[]; disabled: string[] } | null;
+
 /** Online tryout servers, by name. */
-export async function tryoutServers(): Promise<TryoutServer[]> {
+export function tryoutServers(): Promise<TryoutServer[]> {
+  return serversRunning((state) => {
+    if (!runs(state, 'skins')) return false;
+    // Movement (the Skin tryout set) or practice (tryout servers before it).
+    return runs(state, 'movement') || runs(state, 'practice');
+  });
+}
+
+/**
+ * Online servers that run one mode's plugin and take no matches: the practice
+ * and retakes servers the pickup page lists (GameIntegration.modeServers).
+ */
+export function modeServers(mode: 'practice' | 'retakes'): Promise<TryoutServer[]> {
+  return serversRunning((state) => runs(state, mode));
+}
+
+/** Online servers whose plugins `wanted` accepts and that take no matches, by name. */
+async function serversRunning(wanted: (state: PluginsState) => boolean): Promise<TryoutServer[]> {
   const [servers, links, machines, publicHosts] = await Promise.all([
     listFleetServers(),
     listLinkAddresses(),
@@ -39,10 +58,8 @@ export async function tryoutServers(): Promise<TryoutServer[]> {
   const out: TryoutServer[] = [];
   for (const s of servers) {
     if (!s.online || s.status === 'revoked') continue;
-    if (!runs(s.pluginsState, 'skins')) continue;
-    // Movement (the Skin tryout set) or practice (tryout servers before it).
-    if (!runs(s.pluginsState, 'movement') && !runs(s.pluginsState, 'practice')) continue;
-    // A server with the match plugin on takes matches: not a tryout server.
+    if (!wanted(s.pluginsState)) continue;
+    // A server with the match plugin on takes matches: not one of these.
     if (runs(s.pluginsState, 'match')) continue;
     // Not in the match pool, so usually not linked: where it was seen
     // (its own address, the machine's, the peer), as the Servers page shows.

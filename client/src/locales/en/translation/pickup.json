@@ -187,6 +187,9 @@
       "not_on_roster": "That player is not playing in the match.",
       "not_eligible": "Only someone in the waiting room can come in.",
       "already_subbed_out": "That player already left this match and cannot come back into it.",
+      "may_not_spectate": "Only someone in the lobby who is not playing can spectate.",
+      "spectate_refused": "The match server did not take that. Try again in a moment.",
+      "unknown": "That did not work. Try again.",
       "invite_link_invalid": "That invite link no longer works. Ask the host for a new one."
     },
     "ready": {
@@ -223,6 +226,23 @@
     "vote": {
       "title": "Vote for the map",
       "progress": "{{voted}} of {{total}} voted · {{seconds}} s left"
+    },
+    "spectate": {
+      "button": "Spectate",
+      "noServer": "You are on the spectator list. The match has no server yet: press Spectate again in a moment.",
+      "copy": "Copy",
+      "copied": "Copied",
+      "join": "Join"
+    },
+    "servers": {
+      "title": "Practice and retakes",
+      "hint": "Servers you can join on your own, outside a match.",
+      "none": "None is online right now.",
+      "join": "Join",
+      "mode": {
+        "practice": "Practice",
+        "retakes": "Retakes"
+      }
     },
     "substitute": {
       "title": "Substitution",

@@ -65,6 +65,7 @@ import integrationTeamRoutes from './integrationTeams';
 import experimentalRoutes from './experimental';
 import matchmakingRoutes from './matchmaking';
 import pickupRoutes from './pickup';
+import pickupExtraRoutes from './pickupExtras';
 import leaderboardRoutes from './leaderboard';
 import socialRoutes from './social';
 import addonRoutes from './addons';
@@ -375,6 +376,14 @@ const coreRoutes: MountedRouter[] = [
     title: 'Matchmaking',
     description:
       'Parties, the queue, matches and the matchmaking leaderboard (docs/design/matchmaking.md). On by default for signed-in players; an admin can limit it to admins.',
+  },
+  // Before the lobby's own routes, so `/servers` and `/activity/...` are not read as a lobby's id.
+  {
+    prefix: '/api/pickup',
+    router: pickupExtraRoutes,
+    title: 'Pickup: around the lobby',
+    description:
+      "The Discord Activity's sign-in, invite links, Spectate, and the practice and retakes servers (docs/design/pickup-lobby.md). For signed-in players, but for the Activity's sign-in itself.",
   },
   {
     prefix: '/api/pickup',

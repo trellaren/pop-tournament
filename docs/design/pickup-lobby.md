@@ -312,6 +312,16 @@ Each is its own pull request into `pop`, stacked in this order.
     players back, nothing sent). Roll-out afterwards counts whoever is on
     the field at the end.
 11. **Spectators, practice and retakes**, through the platform's servers.
+    Spectate: someone in the lobby who is not playing, its host or an admin
+    goes on the running match's spectator list (the platform's roster
+    update, as for a substitution) and is shown how to join its server;
+    never someone substituted out of that match, and leaving the lobby or a
+    kick takes them off. A spectator in the server sees the match live, with
+    no GOTV delay, unlike the platform's own rule for a team's bench.
+    Practice and retakes: the platform already has those plugin sets per
+    server, chosen by an admin on the Servers page; the Pickup page and
+    `/pickup servers` list the servers that are online with one of them and
+    take no matches, for anyone signed in to join.
 12. **Moderation and roles.** What the table below marks "build".
 13. **Admin settings and docs.** Settings → Pickup, the user guide page.
 
