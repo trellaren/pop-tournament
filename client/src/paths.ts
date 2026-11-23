@@ -69,6 +69,9 @@ export const paths = {
   /** Sends the signed-in player to where their match lives (veto, server, score, what is next). */
   matchNow: '/match/now',
   playLobby: '/play/:lobbyId',
+  /** Pickup lobbies: a group picks its own teams (docs/design/pickup-lobby.md). */
+  pickup: '/pickup',
+  pickupLobby: '/pickup/:id',
   /** Your friends, friend requests, and adding friends. */
   friends: '/friends',
   /** Every notice the bell showed, with filters. */
@@ -186,7 +189,12 @@ export function matchPagePath(slug: string): string {
 
 /** A tournament's tabs in Manage. */
 export type ManageTournamentTab =
-  'matches' | 'bracket' | 'disputes' | 'setup' | 'prizes' | 'schedule';
+  | 'matches'
+  | 'bracket'
+  | 'disputes'
+  | 'setup'
+  | 'prizes'
+  | 'schedule';
 
 /** `/manage/tournaments/:id/<tab>`: one tournament in Manage (`new` while it is created). */
 export function manageTournamentPath(
@@ -215,6 +223,11 @@ export function matchDetailsPath(slug: string, _tournamentId?: number | null): s
 /** `/play/:lobbyId`: a matchmaking match room. */
 export function playLobbyPath(lobbyId: string): string {
   return `/play/${lobbyId}`;
+}
+
+/** `/pickup/:id`: one pickup lobby. */
+export function pickupLobbyPath(lobbyId: string): string {
+  return `/pickup/${encodeURIComponent(lobbyId)}`;
 }
 
 /** `/player/:steamId` for one player. */

@@ -1,0 +1,89 @@
+{
+  "pickup": {
+    "nav": "Pickup",
+    "title": "Pickup",
+    "intro": "Open a lobby, pick the teams yourselves, and play. Extra players wait their turn in the waiting room.",
+    "error": "That did not work. Try again.",
+    "none": "No lobby is open",
+    "noneHint": "Open one and the others can join it.",
+    "open": "Open a lobby",
+    "view": "Open",
+    "back": "Back to Pickup",
+    "lobbyOf": "{{host}}'s lobby",
+    "summary": "{{seated}} of {{seats}} seated · {{waiting}} waiting",
+    "missing": "This lobby does not exist",
+    "missingHint": "It may have been closed.",
+    "closed": "This lobby is closed",
+    "closedHint": "Open a new one from the Pickup page.",
+    "team": {
+      "a": "Team A",
+      "b": "Team B"
+    },
+    "waitingRoom": "Waiting room",
+    "waitingEmpty": "Nobody is waiting.",
+    "emptySeat": "Free seat",
+    "host": "Host",
+    "averageRating": "Average {{rating}}",
+    "join": {
+      "a": "Join Team A",
+      "b": "Join Team B"
+    },
+    "joinWaiting": "Join waiting room",
+    "leave": "Leave lobby",
+    "teamsLocked": "Teams are locked. Only the host can move players.",
+    "teamsOpen": "Players can choose and switch sides.",
+    "row": {
+      "swap": "Swap team",
+      "toWaiting": "Waiting room",
+      "seat": {
+        "a": "Seat on A",
+        "b": "Seat on B"
+      },
+      "makeHost": "Make host",
+      "kick": "Kick"
+    },
+    "settings": {
+      "title": "Match settings",
+      "teamSize": "Team size",
+      "versus": "{{size}}v{{size}}"
+    },
+    "controls": {
+      "scramble": "Scramble",
+      "balance": "Balance teams",
+      "lock": "Lock teams",
+      "unlock": "Unlock teams",
+      "close": "Close lobby"
+    },
+    "log": {
+      "title": "Lobby log",
+      "opened": "{{actor}} opened the lobby.",
+      "joined": "{{player}} joined {{place}}.",
+      "moved": "{{actor}} moved {{player}} to {{place}}.",
+      "left": "{{player}} left.",
+      "kicked": "{{actor}} kicked {{player}}.",
+      "host_changed": "{{player}} is now the host.",
+      "scrambled": "{{actor}} scrambled the teams.",
+      "balanced": "{{actor}} balanced the teams.",
+      "teams_locked": "{{actor}} locked the teams.",
+      "teams_unlocked": "{{actor}} unlocked the teams.",
+      "settings_changed": "{{actor}} set the team size to {{size}}.",
+      "closed": "The lobby was closed."
+    },
+    "refusal": {
+      "closed": "This lobby is closed.",
+      "stale": "The lobby changed. Try again.",
+      "not_allowed": "Only the host or an admin can do that.",
+      "not_in_lobby": "That player is not in the lobby.",
+      "side_full": "That team is full.",
+      "lobby_full": "The lobby is full.",
+      "teams_locked": "The teams are locked.",
+      "no_change": "Nothing to change.",
+      "invalid_settings": "Those settings are not valid.",
+      "team_size_below_seated": "A team has more players than that team size.",
+      "not_enough_players": "Seat at least two players first.",
+      "lobby_exists": "A lobby is already open.",
+      "in_other_lobby": "You are already in another lobby.",
+      "not_found": "This lobby does not exist."
+    }
+  }
+}

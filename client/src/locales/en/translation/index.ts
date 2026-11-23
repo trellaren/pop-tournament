@@ -6,6 +6,7 @@ import devTools from './devTools.json';
 import mapsTemplatesElo from './mapsTemplatesElo.json';
 import matchesAndModals from './matchesAndModals.json';
 import misc from './misc.json';
+import pickup from './pickup.json';
 import playersTeams from './playersTeams.json';
 import serversAdmin from './serversAdmin.json';
 import social from './social.json';
@@ -26,6 +27,7 @@ const enTranslation = {
   ...compat,
   ...webhooks,
   ...social,
+  ...pickup,
 } as const;
 
 export default enTranslation;
